@@ -1,0 +1,28 @@
+{
+  "tool": "kapruka_create_order",
+  "arguments": {
+    "cart": [
+      {
+        "product_id": "CAKE00KA001695",
+        "quantity": 2
+      },
+      {
+        "product_id": "ORNAMENTS00614",
+        "quantity": 1
+      }
+    ],
+    "recipient": {
+      "name": "Jane Doe",
+      "phone": "+94771234567"
+    },
+    "delivery": {
+      "city": "Kandy",
+      "address": "123 Galle Road",
+      "date": "2026-06-10"
+    },
+    "sender": {
+      "name": "Guest Sender"
+    }
+  },
+  "rawResponse": "event: message\r\ndata: {\"jsonrpc\":\"2.0\",\"id\":47,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"## Order created — `ORD-20260607-B41G`\\n\\n**Grand total:** LKR 7,815\\n\\n| | |\\n|---|---|\\n| Items | LKR 6,740 |\\n| Delivery | LKR 1,075 |\\n\\n**[Open checkout to pay](https://www.kapruka.com/tools/continue_order.jsp?id=D82HQFG2B41G)**\\n\\n_Checkout link expires at 2026-06-08T00:02:52+05:30. Prices are locked for that window._\"}],\"structuredContent\":{\"result\":\"## Order created — `ORD-20260607-B41G`\\n\\n**Grand total:** LKR 7,815\\n\\n| | |\\n|---|---|\\n| Items | LKR 6,740 |\\n| Delivery | LKR 1,075 |\\n\\n**[Open checkout to pay](https://www.kapruka.com/tools/continue_order.jsp?id=D82HQFG2B41G)**\\n\\n_Checkout link expires at 2026-06-08T00:02:52+05:30. Prices are locked for that window._\"},\"isError\":false}}\r\n\r\n"
+}
