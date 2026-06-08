@@ -20,7 +20,59 @@ interface ChatInterfaceProps {
 
 export default function ChatInterface({ messages, onSendMessage, isLoading, onAddToHamper }: ChatInterfaceProps) {
   const [input, setInput] = useState('');
+  const [isListening, setIsListening] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition =
+        (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = 'en-US';
+
+        recognition.onstart = () => {
+          setIsListening(true);
+        };
+
+        recognition.onresult = (event: any) => {
+          const transcript = event.results[0][0].transcript;
+          setInput((prev) => (prev ? prev + ' ' + transcript : transcript));
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+          setIsListening(false);
+        };
+
+        recognition.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = recognition;
+      }
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert('Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.');
+      return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
+    } else {
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error('Error starting recognition:', err);
+      }
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -147,9 +199,13 @@ export default function ChatInterface({ messages, onSendMessage, isLoading, onAd
           {/* Active Input Dock with voice mic trigger */}
           <button
             type="button"
-            className="p-3 bg-luxury-ivory hover:bg-muted-stone/50 border border-muted-stone rounded-full transition-colors duration-200 text-kapruka-purple"
-            title="Voice Command (Mic Trigger)"
-            onClick={() => alert('Speech parsing active: Speak now...')}
+            className={`p-3 rounded-full border transition-all duration-300 ${
+              isListening
+                ? 'bg-red-100 border-red-200 text-red-600 animate-pulse shadow-md'
+                : 'bg-luxury-ivory hover:bg-muted-stone/50 border-muted-stone text-kapruka-purple'
+            }`}
+            title={isListening ? 'Listening... Speak now (Click to stop)' : 'Voice Command (Mic Trigger)'}
+            onClick={toggleListening}
           >
             <Mic className="w-4 h-4" />
           </button>
