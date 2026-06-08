@@ -4,6 +4,19 @@ An intelligent, conversational gifting concierge and personal shopping agent bui
 
 ---
 
+## 🌐 Live Online Demo
+
+Test the application live online using these links:
+* **Frontend Client (Vercel)**: [https://kapruka-ai-shopping-agent.vercel.app](https://kapruka-ai-shopping-agent.vercel.app)
+* **Backend API Gateway (Render)**: [https://kapruka-ai-shopping-agent.onrender.com](https://kapruka-ai-shopping-agent.onrender.com)
+
+> [!NOTE]
+> * **Secure Context for Voice (HTTPS)**: Browsers require a secure context (`https://`) to grant microphone permissions. Use the live HTTPS link above to test the speech recognition voice triggers.
+> * **Render Free Tier Cold Starts**: Since the backend is hosted on a free Render tier, the first request may experience a **30-50 second delay** while the server spins up. Once awake, the concierge responds instantly.
+> * **Zero Downtime API Rotation**: The backend is configured to automatically cycle through multiple Gemini API keys. If one key hits limit restrictions, it falls back seamlessly to keep the online service operational.
+
+---
+
 ## 🚀 Key Features
 
 * **Multi-Lingual NLP Orchestrator**: Understands formal and casual phrasing in English, Sinhala, Tamil, and vernacular dialects like **Singlish** (e.g., *"mata cake ekak one Kandy walata heta"*) and **Tanglish** (e.g., *"enaku roses bouquet onnu venum Colombo 3 ku"*).
@@ -112,5 +125,5 @@ Can be deployed easily to **Vercel**:
 1. Link your GitHub repository in Vercel.
 2. Set the root directory to `/frontend`.
 3. Add the following environment variable to route API requests to your deployed backend:
-   * `NEXT_PUBLIC_API_BASE_URL`: `<URL-of-your-deployed-backend-service>` (e.g., `https://your-backend-app.onrender.com`)
+   * `NEXT_PUBLIC_API_BASE_URL`: `<URL-of-your-deployed-backend-service>` (e.g., `https://kapruka-ai-shopping-agent.onrender.com`)
 4. Click **Deploy**. Vercel will build and host your app with an SSL certificate automatically.
