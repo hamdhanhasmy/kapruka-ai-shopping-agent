@@ -152,7 +152,7 @@ export default function ChatInterface({ messages, onSendMessage, isLoading, onAd
             K
           </div>
           <div>
-            <h2 className="font-serif font-bold text-sm tracking-wide">Kapruka Shopping Agent</h2>
+            <h2 className="font-serif font-bold text-sm tracking-wide">Kalpa Kapruka</h2>
             <p className="text-[10px] text-gray-300 font-semibold tracking-wider flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
               ONLINE

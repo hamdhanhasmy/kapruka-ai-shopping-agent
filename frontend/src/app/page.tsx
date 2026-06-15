@@ -127,14 +127,11 @@ export default function DashboardPage() {
     {
       id: '1',
       sender: 'assistant',
-      text: `Ayubowan! I am KaprukaAI, your premium personal shopper and intelligent gifting concierge. 🤖✨
+      text: `Welcome to Kalpa Kapruka. I am your AI Gifting Concierge. 🤖✨
 
-Kawda surprise karanna one, budget eka, and delivery city eka mata kiyanna. Mama matching items bundle karala, delivery verify karala, secure 60-minute guest checkout link eka ready karannam.
+Tell me what you'd like to send, your budget, and delivery city (e.g., 'mage ammata birthday cake ekak yawanna one Kandy walata'). I understand English, Singlish, and Tanglish.
 
-I easily understand English, casual everyday Singlish, and Tanglish text.
-
-Where are we sending love today?
-(e.g., 'Galle walata fresh flowers and a fruit basket yawanna puluwanda heta?')`,
+Where are we sending love today?`,
       timestamp: new Date('2026-06-08T12:00:00'),
     },
   ]);

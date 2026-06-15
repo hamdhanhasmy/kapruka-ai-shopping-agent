@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Kapruka AI Gifting Concierge - Challenge 2026',
+  title: 'Kalpa Kapruka - AI Gifting Concierge',
   description: 'An ultra-innovative, context-aware AI shopping orchestrator built on top of Kapruka’s public Model Context Protocol.',
 };
 
