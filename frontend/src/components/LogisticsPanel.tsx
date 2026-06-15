@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { MapPin, AlertTriangle, Calendar, CheckCircle2, Thermometer, User, Phone, Home } from 'lucide-react';
 
 interface LogisticsPanelProps {
@@ -36,6 +36,7 @@ export default function LogisticsPanel({
   senderName,
   setSenderName,
 }: LogisticsPanelProps) {
+  const [isSelfShopping, setIsSelfShopping] = useState(false);
   if (!city) {
     return (
       <div className="border border-muted-stone bg-alabaster-card p-5 rounded-lg mb-6 shadow-sm">
@@ -71,7 +72,7 @@ export default function LogisticsPanel({
         <div className="flex items-start gap-2.5 bg-luxury-ivory p-3 rounded-md border border-muted-stone/60">
           <MapPin className="w-4 h-4 text-kapruka-purple mt-0.5" />
           <div>
-            <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide block">Recipient Destination</span>
+            <span className="text-[10px] text-gray-400 font-semibold uppercase tracking-wide block">Delivery City</span>
             <span className="font-bold text-iris-black">{city}</span>
           </div>
         </div>
@@ -90,22 +91,49 @@ export default function LogisticsPanel({
 
       {/* Shipping Contact Form Panel */}
       <div className="mt-4 border-t border-muted-stone/80 pt-4 space-y-3">
-        <h4 className="text-xs font-serif font-bold uppercase tracking-wider text-kapruka-purple flex items-center gap-1.5 mb-2">
-          Shipping & Contact Details
-        </h4>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+          <h4 className="text-xs font-serif font-bold uppercase tracking-wider text-kapruka-purple flex items-center gap-1.5">
+            Shipping & Contact Details
+          </h4>
+          <div className="flex items-center gap-2">
+            <input
+              id="selfShoppingCheckbox"
+              type="checkbox"
+              checked={isSelfShopping}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setIsSelfShopping(checked);
+                if (checked) {
+                  setSenderName(recipientName || 'Guest Customer');
+                }
+              }}
+              className="w-3.5 h-3.5 text-kapruka-purple border-muted-stone rounded focus:ring-kapruka-purple"
+            />
+            <label htmlFor="selfShoppingCheckbox" className="text-[10px] font-bold text-gray-500 uppercase tracking-wider cursor-pointer select-none">
+              Ordering for myself (Self-Shopping Mode)
+            </label>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Recipient Name</label>
+            <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Contact Name</label>
             <input
               type="text"
               value={recipientName}
-              onChange={(e) => setRecipientName(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setRecipientName(val);
+                if (isSelfShopping) {
+                  setSenderName(val);
+                }
+              }}
               className="w-full p-2 bg-luxury-ivory border border-muted-stone/80 rounded text-xs font-semibold text-iris-black focus:outline-none focus:border-kapruka-purple/50 transition-colors duration-200"
               placeholder="e.g. Jane Doe"
             />
           </div>
           <div>
-            <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Recipient Phone</label>
+            <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Contact Phone Number</label>
             <input
               type="text"
               value={recipientPhone}
@@ -115,7 +143,7 @@ export default function LogisticsPanel({
             />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Home / Shipping Address</label>
+            <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Shipping Address</label>
             <input
               type="text"
               value={deliveryAddress}
@@ -124,16 +152,18 @@ export default function LogisticsPanel({
               placeholder="e.g. 12/A Temple Road, Kandy"
             />
           </div>
-          <div>
-            <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Sender Name</label>
-            <input
-              type="text"
-              value={senderName}
-              onChange={(e) => setSenderName(e.target.value)}
-              className="w-full p-2 bg-luxury-ivory border border-muted-stone/80 rounded text-xs font-semibold text-iris-black focus:outline-none focus:border-kapruka-purple/50 transition-colors duration-200"
-              placeholder="e.g. Dulith Herath"
-            />
-          </div>
+          {!isSelfShopping && (
+            <div>
+              <label className="text-[9px] text-gray-400 font-bold uppercase tracking-wider block mb-1">Sender Name (Gifting Mode)</label>
+              <input
+                type="text"
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                className="w-full p-2 bg-luxury-ivory border border-muted-stone/80 rounded text-xs font-semibold text-iris-black focus:outline-none focus:border-kapruka-purple/50 transition-colors duration-200"
+                placeholder="e.g. John Doe"
+              />
+            </div>
+          )}
         </div>
       </div>
 

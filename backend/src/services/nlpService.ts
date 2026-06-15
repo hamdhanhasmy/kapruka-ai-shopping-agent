@@ -97,22 +97,25 @@ export class NlpService {
             generationConfig: { responseMimeType: 'application/json' },
           }, requestOptions);
 
-          let historyPrompt = '';
-          if (history && history.length > 0) {
-            const userHistory = history.filter((m: any) => m.sender === 'user');
-            if (userHistory.length > 0) {
-              historyPrompt = '\nHere is the recent conversation history of the User\'s requests for context (use it to resolve pronouns or carry over items/dates/cities if not explicitly specified in the query):\n' +
-                userHistory.map((m: any) => `User: ${m.text}`).join('\n') + '\n';
-            }
-          }
+           const colomboDate = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+           const todayStr = colomboDate.toISOString().split('T')[0];
 
-          const prompt = `
-            Analyze this shopping/gifting request. The request may contain localized Sri Lankan slang, Singlish, or informal wording (e.g., "maching", "amma", "apata", "cake parak", "bday gift", "colombo 3", "negombo").
-            Extract the following details as a JSON object:
-            - "items": Array of item keywords or product categories requested (e.g., ["roses", "chocolate cake", "card"]). Normalize these to their singular form when querying (e.g., use "cake" instead of "cakes", "rose" instead of "roses").
-            - "target_city": The destination city name (e.g., "Colombo 03", "Kandy"). If not found, output null.
-            - "delivery_date": The target delivery date in YYYY-MM-DD format. Assume today is 2026-06-05. If a relative date is given (e.g. "next week", "tomorrow", "this weekend"), resolve it to YYYY-MM-DD. If not mentioned, output null.
-            - "max_budget": Max budget constraint in LKR as a number. If not found, output null.
+           let historyPrompt = '';
+           if (history && history.length > 0) {
+             const userHistory = history.filter((m: any) => m.sender === 'user');
+             if (userHistory.length > 0) {
+               historyPrompt = '\nHere is the recent conversation history of the User\'s requests for context (use it to resolve pronouns or carry over items/dates/cities if not explicitly specified in the query):\n' +
+                 userHistory.map((m: any) => `User: ${m.text}`).join('\n') + '\n';
+             }
+           }
+
+           const prompt = `
+             Analyze this shopping/gifting request. The request may contain localized Sri Lankan slang, Singlish, or informal wording (e.g., "maching", "amma", "apata", "cake parak", "bday gift", "colombo 3", "negombo").
+             Extract the following details as a JSON object:
+             - "items": Array of item keywords or product categories requested (e.g., ["roses", "chocolate cake", "card"]). Normalize these to their singular form when querying (e.g., use "cake" instead of "cakes", "rose" instead of "roses").
+             - "target_city": The destination city name (e.g., "Colombo 03", "Kandy"). If not found, output null.
+             - "delivery_date": The target delivery date in YYYY-MM-DD format. Assume today is ${todayStr}. If a relative date is given (e.g. "next week", "tomorrow", "this weekend", "heta", "nalaki"), resolve it to YYYY-MM-DD. If not mentioned, output null.
+             - "max_budget": Max budget constraint in LKR as a number. If not found, output null.
             - "gift_message": Any gift message text mentioned in quotes or text. If not found, output null.
             - "recipient_relation": The recipient's relation to sender (e.g. "mother/amma", "friend/maching", "partner").
             - "recipient_name": The recipient's full name if mentioned (e.g. "Jane", "John"). If not mentioned, output null.
@@ -224,14 +227,31 @@ export class NlpService {
       }
     }
 
-    // Date extraction relative to 2026-06-05
+    // Date extraction relative to current system time (Asia/Colombo UTC+5.30)
+    const now = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const nextWeekStr = nextWeek.toISOString().split('T')[0];
+
+    const weekend = new Date(now.getTime());
+    const dayOfWeek = weekend.getUTCDay();
+    const daysToAdd = dayOfWeek === 0 ? 7 : (7 - dayOfWeek);
+    weekend.setUTCDate(weekend.getUTCDate() + daysToAdd);
+    const weekendStr = weekend.toISOString().split('T')[0];
+
     let delivery_date: string | null = null;
-    if (queryLower.includes('tomorrow')) {
-      delivery_date = '2026-06-06';
-    } else if (queryLower.includes('next week')) {
-      delivery_date = '2026-06-12';
-    } else if (queryLower.includes('weekend')) {
-      delivery_date = '2026-06-07';
+    const isTomorrow = queryLower.includes('tomorrow') || queryLower.includes('heta') || queryLower.includes('nalaki');
+    const isNextWeek = queryLower.includes('next week') || queryLower.includes('laba week') || queryLower.includes('adutha varam');
+    const isWeekend = queryLower.includes('weekend') || queryLower.includes('santhiya');
+
+    if (isTomorrow) {
+      delivery_date = tomorrowStr;
+    } else if (isNextWeek) {
+      delivery_date = nextWeekStr;
+    } else if (isWeekend) {
+      delivery_date = weekendStr;
     }
 
     // Inherit date from user history if none in current query
@@ -239,14 +259,14 @@ export class NlpService {
       for (let i = history.length - 1; i >= 0; i--) {
         if (history[i].sender !== 'user') continue;
         const prevText = history[i].text.toLowerCase();
-        if (prevText.includes('tomorrow')) {
-          delivery_date = '2026-06-06';
+        if (prevText.includes('tomorrow') || prevText.includes('heta') || prevText.includes('nalaki')) {
+          delivery_date = tomorrowStr;
           break;
-        } else if (prevText.includes('next week')) {
-          delivery_date = '2026-06-12';
+        } else if (prevText.includes('next week') || prevText.includes('laba week') || prevText.includes('adutha varam')) {
+          delivery_date = nextWeekStr;
           break;
-        } else if (prevText.includes('weekend')) {
-          delivery_date = '2026-06-07';
+        } else if (prevText.includes('weekend') || prevText.includes('santhiya')) {
+          delivery_date = weekendStr;
           break;
         }
       }
@@ -321,9 +341,11 @@ export class NlpService {
           }
 
           const prompt = `
-            You are Kalpa Kapruka, a warm, premium, culturally grounded personal shopping assistant and AI gifting concierge in Sri Lanka.
-            Your personality is helpful, witty, warm, and highly engaging. Speak naturally like a human assistant texting a friend, not like a bot.
-            Your goal is to guide the customer confidently from "I'm not sure" to "add to hamper" by suggesting products enthusiastically and asking helpful discovery questions.
+            You are Kalpa Kapruka, a warm, premium, culturally grounded personal shopping assistant and AI gifting/commerce concierge in Sri Lanka.
+            Your personality is helpful, witty, warm, highly engaging, and opinionated. Speak naturally like a human assistant texting a friend, not like a chatbot.
+            Read the user's situation and offer a personal opinion or a bit of local advice/flavour when appropriate (e.g., if they are buying flowers after a breakup, suggest hand-delivery over a courier as a sincere gesture; if they are shopping for groceries, fashion, or daily essentials for themselves, offer practical recommendations).
+            You support BOTH everyday self-shopping (buying groceries, electronics, home goods, or fashion for themselves) and gifting (sending surprises to others). Treat self-shopping as a main default mode unless they explicitly mention sending a gift.
+            Your goal is to guide the customer confidently from "I'm not sure" to "add to cart" by suggesting products enthusiastically and asking helpful discovery questions.
             
             User message: "${query}"
             ${historyPrompt}
@@ -349,7 +371,7 @@ export class NlpService {
             4. If a budget constraint was exceeded, mention it politely and suggest a lighter/better-fitting alternative confidently.
             5. CRITICAL: Do NOT say that Kapruka does not offer fresh cakes, roses, or flowers for delivery. Kapruka is Sri Lanka's largest store and offers them all. If nothing is in the hamper, explain that they are out of stock or exceeded the budget limit, and suggest looking for something else.
             6. CRITICAL: Do NOT leak any internal developer function names, system tool names, or code terms (such as 'kapruka_create_order', 'kapruka_search_products', 'mcpClient', 'intent', etc.). The customer must never see developer/technical jargon.
-            7. Write a short, engaging response (2-4 sentences). End with a warm hook to keep them chatting or prompt them to say "add to hamper".
+            7. Write a short, engaging response (2-4 sentences). End with a warm hook to keep them chatting or prompt them to add items to their cart/hamper.
           `;
 
           const result = await model.generateContent(prompt);

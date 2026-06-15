@@ -87,7 +87,7 @@ export async function createCheckoutOrder(payload: {
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
-    throw new Error(errorBody.error || `HTTP error! status: ${response.status}`);
+    throw new Error(errorBody.message || errorBody.error || `HTTP error! status: ${response.status}`);
   }
 
   const json = await response.json();

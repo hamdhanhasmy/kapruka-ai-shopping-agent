@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Gift, PackageOpen, Trash2 } from 'lucide-react';
+import { Gift, PackageOpen, Trash2, ShoppingCart } from 'lucide-react';
 
 interface CartItem {
   id: string | number;
@@ -24,9 +24,9 @@ export default function GiftBoxBuilder({ items, onRemoveItem, onClear }: GiftBox
     <div className="border border-muted-stone bg-alabaster-card p-6 rounded-lg mb-6 shadow-sm">
       <div className="flex items-center justify-between border-b border-muted-stone pb-4 mb-4">
         <div className="flex items-center gap-3">
-          <Gift className="text-kapruka-purple w-6 h-6" />
+          <ShoppingCart className="text-kapruka-purple w-6 h-6" />
           <h2 className="font-serif text-2xl font-bold text-kapruka-purple tracking-tight">
-            Curated Hamper Builder
+            Shopping Cart & Hamper Builder
           </h2>
         </div>
         {items.length > 0 && (
@@ -34,7 +34,7 @@ export default function GiftBoxBuilder({ items, onRemoveItem, onClear }: GiftBox
             onClick={onClear}
             className="text-xs text-red-600 hover:underline flex items-center gap-1 font-semibold"
           >
-            <Trash2 className="w-3.5 h-3.5" /> Reset Hamper
+            <Trash2 className="w-3.5 h-3.5" /> Reset Cart
           </button>
         )}
       </div>
@@ -42,8 +42,8 @@ export default function GiftBoxBuilder({ items, onRemoveItem, onClear }: GiftBox
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-8 text-center text-gray-500 border-2 border-dashed border-muted-stone rounded-md bg-luxury-ivory/50">
           <PackageOpen className="w-10 h-10 text-muted-stone mb-2" />
-          <p className="font-sans text-sm font-medium">Your active gift box is empty.</p>
-          <p className="text-xs text-gray-400 mt-1">Tell the concierge to search or add items to curate your gift.</p>
+          <p className="font-sans text-sm font-medium">Your active shopping cart is empty.</p>
+          <p className="text-xs text-gray-400 mt-1">Tell the concierge what you want to buy for yourself or send as a gift.</p>
         </div>
       ) : (
         <div>
@@ -57,7 +57,7 @@ export default function GiftBoxBuilder({ items, onRemoveItem, onClear }: GiftBox
                 <button
                   onClick={() => onRemoveItem(item.id)}
                   className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-sm"
-                  title="Remove from hamper"
+                  title="Remove item"
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
@@ -71,7 +71,7 @@ export default function GiftBoxBuilder({ items, onRemoveItem, onClear }: GiftBox
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-muted-stone/20 text-kapruka-purple/55 font-bold text-xs">
-                      Kapruka Gift
+                      Kapruka Item
                     </div>
                   )}
                 </div>

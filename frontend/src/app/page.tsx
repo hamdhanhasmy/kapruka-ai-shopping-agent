@@ -13,112 +13,112 @@ export default function DashboardPage() {
   // Pre-loaded catalog products for manual browsing
   const mockProducts: Product[] = [
     {
-      id: 'KAP-1001',
-      name: 'Boutique Fresh Red Roses Bouquet (12 Stems)',
-      price: 4500,
+      id: 'FLOWERS00T2075',
+      name: '6 Red Rose Bouquet With Elegant Wrapping',
+      price: 5210,
       image: 'https://images.unsplash.com/photo-1561181286-d3fee7d55364?w=500&auto=format&fit=crop&q=60',
       category: 'Flowers',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/red-roses-bouquet',
+      url: 'https://www.kapruka.com/buyonline/6-red-rose-bouquet-with-elegan/kid/flowers00t2075',
     },
     {
-      id: 'KAP-1002',
-      name: 'Double Chocolate Fudge Gateau Drip Cake',
-      price: 6800,
+      id: 'CAKE00KA001990',
+      name: 'Golden Celebration Chocolate Cake Indulgence',
+      price: 6700,
       image: 'https://images.unsplash.com/photo-1578985545062-69928b1d9587?w=500&auto=format&fit=crop&q=60',
       category: 'Cakes',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/chocolate-fudge-cake',
+      url: 'https://www.kapruka.com/buyonline/golden-celebration-chocolate-c/kid/cake00ka001990',
     },
     {
-      id: 'KAP-1003',
-      name: 'Luxury Gold-Embossed Birthday Greetings Card',
-      price: 850,
+      id: 'CUSTOMGIFT00142',
+      name: 'Customized "Happy Birthday My Love" Greeting Card',
+      price: 550,
       image: 'https://images.unsplash.com/photo-1513201099705-a9746e1e201f?w=500&auto=format&fit=crop&q=60',
       category: 'Cards',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/greeting-card',
+      url: 'https://www.kapruka.com/buyonline/customized-happy-birthday-my-l/kid/customgift00142',
     },
     {
-      id: 'KAP-1004',
-      name: 'Assorted Gourmet Belgian Chocolate Box',
-      price: 3200,
-      image: 'https://images.unsplash.com/photo-1549007994-cb92ca87df46?w=500&auto=format&fit=crop&q=60',
+      id: 'EF_PC_CHOC0V571POD00076',
+      name: 'Glitter Hearts Chocolate Box',
+      price: 3500,
+      image: 'https://images.unsplash.com/photo-1548907040-4d42b52115ca?w=500&auto=format&fit=crop&q=60',
       category: 'Chocolates',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/gourmet-chocolates',
+      url: 'https://www.kapruka.com/buyonline/glitter-hearts-chocolate-box/kid/ef_pc_choc0v571pod00076',
     },
     {
-      id: 'KAP-1005',
-      name: 'Premium Teddy Bear (Brown, Medium)',
-      price: 5200,
+      id: 'SOFTTOY00650',
+      name: '3 Ft Giant Bubsy Teddy - Giant Teddy Bear',
+      price: 11000,
       image: 'https://images.unsplash.com/photo-1559251606-c623743a6d76?w=500&auto=format&fit=crop&q=60',
       category: 'Toys',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/brown-teddy-bear',
+      url: 'https://www.kapruka.com/buyonline/3-ft-giant-bubsy-teddy-giant-t/kid/softtoy00650',
     },
     {
-      id: 'KAP-1006',
-      name: 'Elegant White Lilies & Eucalyptus Vase',
-      price: 5800,
+      id: 'FLOWERS00T2078',
+      name: 'To My Golden Queen Rose Bouquet With 11 Red Roses',
+      price: 8690,
       image: 'https://images.unsplash.com/photo-1526047932273-341f2a7631f9?w=500&auto=format&fit=crop&q=60',
       category: 'Flowers',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/white-lilies-vase',
+      url: 'https://www.kapruka.com/buyonline/to-my-golden-queen-rose-bouque/kid/flowers00t2078',
     },
     {
-      id: 'KAP-1007',
-      name: 'Classic Victoria Strawberry Sponge Cake',
-      price: 6200,
+      id: 'CAKE00KA002034',
+      name: 'Blueberry Bliss Bento Cheesecake',
+      price: 4200,
       image: 'https://images.unsplash.com/photo-1535141192574-5d4897c13636?w=500&auto=format&fit=crop&q=60',
       category: 'Cakes',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/strawberry-cake',
+      url: 'https://www.kapruka.com/buyonline/blueberry-bliss-bento-cheeseca/kid/cake00ka002034',
     },
     {
-      id: 'KAP-1008',
-      name: 'Handcrafted Floral Anniversary Greeting Card',
-      price: 950,
+      id: 'EF_PC_GREE0V2451P00023',
+      name: 'Subha Upandinayak Amma Greeting Card',
+      price: 420,
       image: 'https://images.unsplash.com/photo-1509281373149-e957c6296406?w=500&auto=format&fit=crop&q=60',
       category: 'Cards',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/floral-card',
+      url: 'https://www.kapruka.com/buyonline/subha-upandinayak-amma-greetin/kid/ef_pc_gree0v2451p00023',
     },
     {
-      id: 'KAP-1009',
-      name: 'Artisanal Dark Chocolate Truffles (Pack of 16)',
-      price: 4100,
-      image: 'https://images.unsplash.com/photo-1481391302567-4a6957d6d7c1?w=500&auto=format&fit=crop&q=60',
+      id: 'CHOCOLATES001929',
+      name: 'Java Assortment Kunafa Truffle Box 12 Pcs',
+      price: 4210,
+      image: 'https://images.unsplash.com/photo-1511381939415-e4401546383a?w=500&auto=format&fit=crop&q=60',
       category: 'Chocolates',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/dark-truffles',
+      url: 'https://www.kapruka.com/buyonline/java-assortment-kunafa-truffle/kid/chocholates001929',
     },
     {
-      id: 'KAP-1010',
-      name: 'Cute Fluffy White Bunny Plush Toy',
-      price: 3800,
+      id: 'SOFTTOY001209',
+      name: 'Proud Graduate Teddy Bear - 7 Inch',
+      price: 1400,
       image: 'https://images.unsplash.com/photo-1583847268964-b28dc8f51f92?w=500&auto=format&fit=crop&q=60',
       category: 'Toys',
-      in_stock: false,
-      url: 'https://www.kapruka.com/buyonline/bunny-plush',
+      in_stock: true,
+      url: 'https://www.kapruka.com/buyonline/proud-graduate-teddy-bear-7-in/kid/softtoy001209',
     },
     {
-      id: 'KAP-1011',
-      name: 'Royal Afternoon Tea Premium Hamper',
-      price: 12500,
+      id: 'CPHAMPER0268',
+      name: 'Family Hygienic Needs Hamper Box',
+      price: 6500,
       image: 'https://images.unsplash.com/photo-1584269600464-37b1b58a9fe7?w=500&auto=format&fit=crop&q=60',
       category: 'Hampers',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/tea-hamper',
+      url: 'https://www.kapruka.com/buyonline/family-hygienic-needs-hamper-b/kid/cphamper0268',
     },
     {
-      id: 'KAP-1012',
-      name: 'Deluxe Fruit & Nuts Celebration Basket',
-      price: 9800,
+      id: 'CPHAMPER0318',
+      name: 'Golden Crunch Nutty Hamper Box',
+      price: 15000,
       image: 'https://images.unsplash.com/photo-1610832958506-ee5633613df2?w=500&auto=format&fit=crop&q=60',
       category: 'Hampers',
       in_stock: true,
-      url: 'https://www.kapruka.com/buyonline/fruit-nuts-basket',
+      url: 'https://www.kapruka.com/buyonline/golden-crunch-nutty-hamper-box/kid/cphamper0318',
     },
   ];
 
@@ -127,12 +127,12 @@ export default function DashboardPage() {
     {
       id: '1',
       sender: 'assistant',
-      text: `Welcome to Kalpa Kapruka. I am your AI Gifting Concierge. 🤖✨
+      text: `Welcome to Kalpa Kapruka. I am your AI Shopping & Gifting Concierge. 🤖✨
 
-Tell me what you'd like to send, your budget, and delivery city (e.g., 'mage ammata birthday cake ekak yawanna one Kandy walata'). I understand English, Singlish, and Tanglish.
+Tell me what you'd like to buy for yourself or send as a gift, your budget, and delivery city (e.g., 'mage ammata birthday cake ekak yawanna one Kandy walata' or 'I need to buy some fresh fruits and chocolates'). I understand English, Singlish, and Tanglish.
 
-Where are we sending love today?`,
-      timestamp: new Date('2026-06-08T12:00:00'),
+What are we shopping for today?`,
+      timestamp: new Date(),
     },
   ]);
   const [cart, setCart] = useState<any[]>([]);
@@ -221,7 +221,14 @@ Where are we sending love today?`,
         delivery: {
           city: currentCity || 'Colombo 03',
           address: deliveryAddress || '123 Galle Road',
-          date: currentDate || '2026-06-12',
+          date: currentDate || (() => {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const yyyy = tomorrow.getFullYear();
+            const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
+            const dd = String(tomorrow.getDate()).padStart(2, '0');
+            return `${yyyy}-${mm}-${dd}`;
+          })(),
         },
         sender: {
           name: senderName || 'Guest Sender',
@@ -255,6 +262,58 @@ Where are we sending love today?`,
       ]);
     } catch (err: any) {
       console.error(err);
+      
+      // Check if it's a date capacity error
+      const errText = (err.message || '').toLowerCase();
+      const isDateUnavailable = errText.includes('date_not_deliverable') || 
+                                errText.includes('slots for') ||
+                                errText.includes('slots are full') ||
+                                (errText.includes('delivery for') && errText.includes('full'));
+
+      if (isDateUnavailable) {
+        // Try to parse suggested date from error message
+        const dateMatch = err.message.match(/(?:scheduled your delivery for|scheduled for|delivery for)\s+(\d{1,2})\s*[\/\-]\s*([a-zA-Z]+)/i);
+        if (dateMatch) {
+          const day = dateMatch[1];
+          const monthStr = dateMatch[2].toLowerCase();
+          
+          const monthsMap: Record<string, string> = {
+            jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+            jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12',
+            january: '01', february: '02', march: '03', april: '04', june: '06',
+            july: '07', august: '08', september: '09', october: '10', november: '11', december: '12'
+          };
+          
+          const monthNum = monthsMap[monthStr] || monthsMap[monthStr.slice(0, 3)] || '06';
+          const year = new Date().getFullYear();
+          const suggestedDate = `${year}-${monthNum}-${String(day).padStart(2, '0')}`;
+          
+          // Set current date to the suggested date
+          setCurrentDate(suggestedDate);
+
+          // Render a custom user friendly error/instruction message
+          let friendlyMsg = `Notice: Tomorrow's delivery slots to ${currentCity || 'your location'} are full. 🚚 We have automatically adjusted your delivery date to **${suggestedDate}** (${day}/${monthStr.toUpperCase()}). Please tap the "Generate Guest Checkout Link" button again to complete checkout!`;
+          if (userLanguage === 'sinhala') {
+            friendlyMsg = `දැනුම්දීමයි: හෙට දින ${currentCity || 'ඔබගේ ප්‍රදේශයට'} බෙදාහැරීමේ වාර සියල්ල පිරී ඇත. 🚚 ඔබගේ බෙදාහැරීමේ දිනය ස්වයංක්‍රීයව **${suggestedDate}** ලෙස වෙනස් කරන ලදී. ඇණවුම තහවුරු කිරීමට නැවත "Generate Guest Checkout Link" බොත්තම ඔබන්න!`;
+          } else if (userLanguage === 'tamil' || userLanguage === 'tanglish') {
+            friendlyMsg = `அறிவிப்பு: நாளை ${currentCity || 'உங்கள் முகவரிக்கு'} விநியோக சேவைகள் நிறைவடைந்துள்ளன. 🚚 உங்களது விநியோக தேதி **${suggestedDate}** ஆக மாற்றப்பட்டுள்ளது. ஆர்டரை உறுதி செய்ய மீண்டும் "Generate Guest Checkout Link" பொத்தானை அழுத்தவும்!`;
+          } else if (userLanguage === 'singlish') {
+            friendlyMsg = `Notice: Heta ${currentCity || 'oyage location ekata'} delivery slots full. 🚚 E nisa api delivery date eka automatically **${suggestedDate}** වලට adjust kalaa. Checkout link eka generate karanna click 'Generate Guest Checkout Link' button again!`;
+          }
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Math.random().toString(),
+              sender: 'assistant',
+              text: friendlyMsg,
+              timestamp: new Date(),
+            },
+          ]);
+          setIsLoading(false);
+          return;
+        }
+      }
       
       let errorMsg = `Podi prashnayak! I couldn't generate the checkout link: ${err.message || 'Please check your details and try again.'} 😕`;
       if (userLanguage === 'sinhala') {
@@ -488,7 +547,7 @@ Where are we sending love today?`,
               : 'bg-transparent text-gray-500 hover:text-kapruka-purple'
           }`}
         >
-          Hamper & Catalog
+          Cart & Catalog
           {cart.length > 0 && (
             <span className="absolute -top-1 right-2 bg-kapruka-gold text-kapruka-purple font-extrabold text-[9px] w-5 h-5 rounded-full flex items-center justify-center border-2 border-white">
               {cart.reduce((sum, item) => sum + item.quantity, 0)}
