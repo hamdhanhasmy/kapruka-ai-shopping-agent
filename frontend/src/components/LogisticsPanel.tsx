@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { MapPin, AlertTriangle, Calendar, CheckCircle2, Thermometer, User, Phone, Home } from 'lucide-react';
 
 interface LogisticsPanelProps {
@@ -18,6 +18,8 @@ interface LogisticsPanelProps {
   setDeliveryAddress: (val: string) => void;
   senderName: string;
   setSenderName: (val: string) => void;
+  isSelfShopping: boolean;
+  setIsSelfShopping: (val: boolean) => void;
 }
 
 export default function LogisticsPanel({
@@ -35,8 +37,9 @@ export default function LogisticsPanel({
   setDeliveryAddress,
   senderName,
   setSenderName,
+  isSelfShopping,
+  setIsSelfShopping,
 }: LogisticsPanelProps) {
-  const [isSelfShopping, setIsSelfShopping] = useState(false);
   if (!city) {
     return (
       <div className="border border-muted-stone bg-alabaster-card p-5 rounded-lg mb-6 shadow-sm">

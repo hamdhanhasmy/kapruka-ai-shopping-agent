@@ -13,6 +13,7 @@ export interface ChatResponse {
     recipient_phone?: string | null;
     delivery_address?: string | null;
     sender_name?: string | null;
+    is_self_shopping?: boolean;
   };
   bundle: {
     items: Array<{

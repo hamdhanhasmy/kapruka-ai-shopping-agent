@@ -164,6 +164,7 @@ What are we shopping for today?`,
   const [recipientPhone, setRecipientPhone] = useState<string>('+94771234567');
   const [deliveryAddress, setDeliveryAddress] = useState<string>('123 Galle Road');
   const [senderName, setSenderName] = useState<string>('');
+  const [isSelfShopping, setIsSelfShopping] = useState<boolean>(false);
 
   // Cart operations
   const handleAddToHamper = (product: Product) => {
@@ -476,6 +477,9 @@ What are we shopping for today?`,
       setPerishableItems(bundle.perishable_items);
 
       // Pre-fill shipping/contact details parsed by Gemini
+      if (typeof intent.is_self_shopping === 'boolean') {
+        setIsSelfShopping(intent.is_self_shopping);
+      }
       if (intent.recipient_name) setRecipientName(intent.recipient_name);
       if (intent.recipient_phone) setRecipientPhone(intent.recipient_phone);
       if (intent.delivery_address) setDeliveryAddress(intent.delivery_address);
@@ -608,6 +612,8 @@ What are we shopping for today?`,
               setDeliveryAddress={setDeliveryAddress}
               senderName={senderName}
               setSenderName={setSenderName}
+              isSelfShopping={isSelfShopping}
+              setIsSelfShopping={setIsSelfShopping}
             />
 
             {/* Catalog Grid Header */}

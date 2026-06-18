@@ -17,6 +17,7 @@ export interface ParsedIntent {
   recipient_phone: string | null;
   delivery_address: string | null;
   sender_name: string | null;
+  is_self_shopping: boolean;
 }
 
 export class NlpService {
@@ -27,11 +28,20 @@ export class NlpService {
     const keysStr = process.env.GEMINI_API_KEY || '';
     const apiKeys = keysStr.split(',').map(k => k.trim()).filter(Boolean);
 
-    if (apiKeys.length > 0) {
-      this.genAIInstances = apiKeys.map(key => new GoogleGenerativeAI(key));
-      console.log(`[NLP] Configured API Key Rotation with ${this.genAIInstances.length} client instance(s).`);
+    // Only load keys that start with "AIza" or "AQ"
+    const validKeys = apiKeys.filter(key => {
+      if (key.startsWith('AIza') || key.startsWith('AQ')) {
+        return true;
+      }
+      console.warn(`[NLP] Skipping invalid Gemini API key format (must start with AIza or AQ): ${key.slice(0, 10)}...`);
+      return false;
+    });
+
+    if (validKeys.length > 0) {
+      this.genAIInstances = validKeys.map(key => new GoogleGenerativeAI(key));
+      console.log(`[NLP] Configured API Key Rotation with ${this.genAIInstances.length} valid client instance(s).`);
     } else {
-      console.warn('No GEMINI_API_KEY configured. Falling back to rule-based NLP.');
+      console.warn('No valid GEMINI_API_KEY configured. Falling back to rule-based NLP.');
     }
   }
 
@@ -40,44 +50,69 @@ export class NlpService {
    * If a rate limit or API error is hit, it cycles to the next key and retries.
    */
   private async executeWithRotation<T>(
-    operation: (genAI: GoogleGenerativeAI) => Promise<T>
+    operation: (genAI: GoogleGenerativeAI, modelName: string) => Promise<T>
   ): Promise<T> {
     const totalInstances = this.genAIInstances.length;
     if (totalInstances === 0) {
       throw new Error('No GoogleGenerativeAI clients initialized.');
     }
 
+    const modelsToTry = ['gemini-flash-latest', 'gemini-2.5-flash'];
     let lastError: any = null;
 
-    // Try each key once in sequence starting from currentKeyIndex
-    for (let attempt = 0; attempt < totalInstances; attempt++) {
-      const idx = (this.currentKeyIndex + attempt) % totalInstances;
-      const client = this.genAIInstances[idx];
+    // Try each model in sequence
+    for (const modelName of modelsToTry) {
+      // Try each key once in sequence starting from currentKeyIndex
+      for (let attempt = 0; attempt < totalInstances; attempt++) {
+        const idx = (this.currentKeyIndex + attempt) % totalInstances;
+        const client = this.genAIInstances[idx];
 
-      try {
-        const result = await operation(client);
-        // Successful execution! Update current active key index
-        this.currentKeyIndex = idx;
-        return result;
-      } catch (err: any) {
-        lastError = err;
-        const errMsg = err.message || '';
-        const isQuotaOrLimit = 
-          errMsg.includes('429') || 
-          errMsg.includes('Quota exceeded') || 
-          errMsg.includes('rate-limits') ||
-          errMsg.includes('Too Many Requests');
+        try {
+          const result = await operation(client, modelName);
+          // Successful execution! Update current active key index
+          this.currentKeyIndex = idx;
+          return result;
+        } catch (err: any) {
+          lastError = err;
+          const errMsg = err.message || '';
+          const errStatus = err.status || err.statusCode;
+          
+          const isQuotaOrLimit = 
+            errStatus === 429 ||
+            errMsg.includes('429') || 
+            errMsg.includes('Quota exceeded') || 
+            errMsg.includes('rate-limits') ||
+            errMsg.includes('Too Many Requests');
 
-        if (isQuotaOrLimit) {
-          console.warn(`[NLP] Quota limit hit on API key index ${idx}. Rotating to next key... Details: ${errMsg.slice(0, 150)}...`);
-        } else {
-          console.error(`[NLP] Error encountered on API key index ${idx}. Cycling key anyway:`, err);
+          const isModelUnavailable = 
+            errStatus === 503 ||
+            errStatus === 404 ||
+            errMsg.includes('503') || 
+            errMsg.includes('Service Unavailable') || 
+            errMsg.includes('high demand') ||
+            errMsg.includes('overloaded') ||
+            errMsg.includes('temporary') ||
+            errMsg.includes('404') ||
+            errMsg.includes('not found') ||
+            errMsg.includes('not_found');
+
+          if (isModelUnavailable) {
+            console.warn(`[NLP] Model "${modelName}" is experiencing high demand or is unavailable. Swapping model... Details: ${errMsg.slice(0, 120)}...`);
+            // Break key loop to try next model
+            break;
+          }
+
+          if (isQuotaOrLimit) {
+            console.warn(`[NLP] Quota limit hit on API key index ${idx} for model "${modelName}". Rotating key... Details: ${errMsg.slice(0, 120)}...`);
+          } else {
+            console.error(`[NLP] Error on key index ${idx} for model "${modelName}". Cycling key...`, err);
+          }
         }
       }
     }
 
     // If we reach here, all instances failed
-    throw lastError || new Error('All Gemini API key clients failed in rotation loop.');
+    throw lastError || new Error('All Gemini API key clients and models failed in rotation loop.');
   }
 
   /**
@@ -87,13 +122,13 @@ export class NlpService {
   public async parseUserIntent(query: string, history?: any[]): Promise<ParsedIntent> {
     if (this.genAIInstances.length > 0) {
       try {
-        return await this.executeWithRotation(async (genAI) => {
+        return await this.executeWithRotation(async (genAI, modelName) => {
           const requestOptions = process.env.GEMINI_BASE_URL ? {
             baseUrl: process.env.GEMINI_BASE_URL
           } : undefined;
 
           const model = genAI.getGenerativeModel({
-            model: 'gemini-flash-latest',
+            model: modelName,
             generationConfig: { responseMimeType: 'application/json' },
           }, requestOptions);
 
@@ -104,7 +139,7 @@ export class NlpService {
            if (history && history.length > 0) {
              const userHistory = history.filter((m: any) => m.sender === 'user');
              if (userHistory.length > 0) {
-               historyPrompt = '\nHere is the recent conversation history of the User\'s requests for context (use it to resolve pronouns or carry over items/dates/cities if not explicitly specified in the query):\n' +
+               historyPrompt = '\nHere is the recent conversation history of the User\'s requests for context (use it to resolve pronouns or carry over items/dates/cities/names if not explicitly specified in the query):\n' +
                  userHistory.map((m: any) => `User: ${m.text}`).join('\n') + '\n';
              }
            }
@@ -116,17 +151,25 @@ export class NlpService {
              - "target_city": The destination city name (e.g., "Colombo 03", "Kandy"). If not found, output null.
              - "delivery_date": The target delivery date in YYYY-MM-DD format. Assume today is ${todayStr}. If a relative date is given (e.g. "next week", "tomorrow", "this weekend", "heta", "nalaki"), resolve it to YYYY-MM-DD. If not mentioned, output null.
              - "max_budget": Max budget constraint in LKR as a number. If not found, output null.
-            - "gift_message": Any gift message text mentioned in quotes or text. If not found, output null.
-            - "recipient_relation": The recipient's relation to sender (e.g. "mother/amma", "friend/maching", "partner").
-            - "recipient_name": The recipient's full name if mentioned (e.g. "Jane", "John"). If not mentioned, output null.
-            - "recipient_phone": The recipient's phone number if mentioned (e.g. "0771234567"). If not mentioned, output null.
-            - "delivery_address": The street/home shipping address mentioned (e.g. "12 Galle Road", "no 5 temple road"). If not mentioned, output null.
-            - "sender_name": The sender's name if mentioned (e.g. "Amal", "Kamal"). If not mentioned, output null.
-            ${historyPrompt}
-            User Query: "${query}"
+             - "gift_message": Any gift message text mentioned in quotes or text. If not found, output null.
+             - "recipient_relation": The recipient's relation to sender (e.g. "mother/amma", "friend/maching", "partner").
+             - "recipient_name": The recipient's full name if mentioned (e.g. "Jane", "John"). If not mentioned, output null.
+             - "recipient_phone": The recipient's phone number if mentioned (e.g. "0771234567"). If not mentioned, output null.
+             - "delivery_address": The street/home shipping address mentioned (e.g. "12 Galle Road", "no 5 temple road"). If not mentioned, output null.
+             - "sender_name": The sender's name if mentioned (e.g. "Amal", "Kamal"). If not mentioned, output null.
+             - "is_self_shopping": Boolean. Set to true if the customer is ordering/purchasing for themselves (Self-Shopping mode). Set to false if they are sending it as a gift to someone else (Gifting mode).
+               - Self-Shopping mode (true) is the default unless they explicitly mention sending it to another person (e.g. "amma", "friend", "sister", "wife"), use words like "gift", "surprise", or provide a recipient name separate from their own.
+               - If they say "mata" (for me), "ewanna" (send to me), "my address", "my name", "my phone", "ordering for myself", set this to true.
+               
+              CRITICAL RULES for Self-Shopping mode (is_self_shopping is true):
+              - If they mention their own name (e.g. "mage nama Hamsey"), set BOTH "recipient_name" and "sender_name" to that name.
+              - If they mention their own phone number (e.g. "phone no eka 0786674557"), set "recipient_phone" to that phone number so the contact phone number input gets updated correctly.
+             
+             ${historyPrompt}
+             User Query: "${query}"
 
-            Return ONLY a JSON block with these keys: items (array), target_city (string or null), delivery_date (string or null), max_budget (number or null), gift_message (string or null), recipient_relation (string or null), recipient_name (string or null), recipient_phone (string or null), delivery_address (string or null), sender_name (string or null).
-          `;
+             Return ONLY a JSON block with these keys: items (array), target_city (string or null), delivery_date (string or null), max_budget (number or null), gift_message (string or null), recipient_relation (string or null), recipient_name (string or null), recipient_phone (string or null), delivery_address (string or null), sender_name (string or null), is_self_shopping (boolean).
+           `;
 
           const result = await model.generateContent(prompt);
           const text = result.response.text();
@@ -272,17 +315,35 @@ export class NlpService {
       }
     }
 
+    const recipient_relation = queryLower.includes('amma') ? 'mother' : queryLower.includes('maching') ? 'friend' : null;
+    
+    // Determine is_self_shopping
+    const hasGiftingKeywords = queryLower.includes('gift') || queryLower.includes('surprise') || queryLower.includes('send to') || queryLower.includes('yawanna') || queryLower.includes('anupunga') || queryLower.includes('gift hamper');
+    const is_self_shopping = (recipient_relation || hasGiftingKeywords) ? false : true;
+
+    // Try to extract phone number (e.g. 0786674557 or +94771234567)
+    const phoneMatch = query.match(/(?:phone|mobile|tel|contact|no)\s*(?:no|number|eka)?\s*(?:is|:)?\s*(\+?\d[\d\s-]{8,12}\d)/i);
+    const recipient_phone = phoneMatch ? phoneMatch[1].replace(/[\s-]/g, '') : null;
+
+    // Try to extract name (e.g. mage nama Hamsey)
+    const nameMatch = query.match(/(?:name|nama|nma|sender)\s*(?:eka|is)?\s*([a-zA-Z]{2,15})/i);
+    const extractedName = nameMatch ? nameMatch[1].trim() : null;
+
+    const recipient_name = is_self_shopping ? extractedName : null;
+    const sender_name = extractedName;
+
     return {
       items,
       target_city,
       delivery_date,
       max_budget,
       gift_message: null,
-      recipient_relation: queryLower.includes('amma') ? 'mother' : queryLower.includes('maching') ? 'friend' : null,
-      recipient_name: null,
-      recipient_phone: null,
+      recipient_relation,
+      recipient_name,
+      recipient_phone,
       delivery_address: null,
-      sender_name: null,
+      sender_name,
+      is_self_shopping,
     };
   }
 
@@ -327,12 +388,12 @@ export class NlpService {
   ): Promise<string> {
     if (this.genAIInstances.length > 0) {
       try {
-        return await this.executeWithRotation(async (genAI) => {
+        return await this.executeWithRotation(async (genAI, modelName) => {
           const requestOptions = process.env.GEMINI_BASE_URL ? {
             baseUrl: process.env.GEMINI_BASE_URL
           } : undefined;
 
-          const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' }, requestOptions);
+          const model = genAI.getGenerativeModel({ model: modelName }, requestOptions);
           
           let historyPrompt = '';
           if (history && history.length > 0) {
@@ -388,54 +449,67 @@ export class NlpService {
     const isSinhala = sinhalaRegex.test(query);
     const isTamil = tamilRegex.test(query);
     const textLower = query.toLowerCase();
-    const isTanglish = ['enaku', 'unaku', 'venum', 'anupunga', 'kudunga', 'iruka', 'eppo', 'nalaki', 'panna', 'pannunga', 'anupa'].some(kw => textLower.includes(kw));
-    const isSinglish = ['mata', 'one', 'ewanna', 'danna', 'hampa', 'yawanna', 'puluwanda', 'heta', 'walata', 'hari', 'mama', 'oyage', 'meka', 'mge', 'karanna'].some(kw => textLower.includes(kw));
+    const isTanglish = ['enaku', 'unaku', 'venum', 'anupunga', 'kudunga', 'iruka', 'eppo', 'nalaki', 'panna', 'pannunga', 'anupa', 'vanakkam', 'epdi', 'epadi'].some(kw => textLower.includes(kw));
+    const isSinglish = ['mata', 'one', 'ewanna', 'danna', 'hampa', 'yawanna', 'puluwanda', 'heta', 'walata', 'hari', 'mama', 'oyage', 'meka', 'mge', 'karanna', 'kohomada', 'oyata', 'halo'].some(kw => textLower.includes(kw));
+
+    // Detect if it is a general social greeting
+    const greetings = ['hello', 'hi', 'hey', 'vanakkam', 'ayubowan', 'kohomada', 'epdi', 'epadi', 'how are you', 'halo', 'hola'];
+    const isGreeting = greetings.some(g => {
+      const escaped = g.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+      return regex.test(query);
+    });
 
     let reply = '';
     if (isTamil) {
-      reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். `;
-      if (bundle.budget_exceeded) {
-        reply += `இருப்பினும், தேர்ந்தெடுக்கப்பட்ட பொருட்களின் மொத்த விலை (ரூ. ${bundle.total.toLocaleString()} LKR) உங்கள் பட்ஜெட்டைக் காட்டிலும் அதிகமாக உள்ளது. மலிவான பொருட்கள் ஏதேனும் தேவையா என்று எனக்குக் கூறவும்! 😕`;
+      if (isGreeting) {
+        reply = `வணக்கம்! நான் உங்களுக்கு இன்று எவ்வாறு உதவ முடியும்? உங்களுக்கு புதிய பூக்கள், கேக், சாக்லேட் அல்லது பரிசு கூடை ஏதேனும் தேவையா? 😊`;
+      } else if (bundle.budget_exceeded) {
+        reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். இருப்பினும், தேர்ந்தெடுக்கப்பட்ட பொருட்களின் மொத்த விலை (ரூ. ${bundle.total.toLocaleString()} LKR) உங்கள் பட்ஜெட்டைக் காட்டிலும் அதிகமாக உள்ளது. மலிவான பொருட்கள் ஏதேனும் தேவையா என்று எனக்குக் கூறவும்! 😕`;
       } else if (bundle.items.length > 0) {
-        reply += `உங்கள் தேவைக்கேற்ப ${bundle.items.length} பொருட்களை நான் கூடையில் சேர்த்துள்ளேன், இதனை ${bundle.city || 'உங்கள் இடத்திற்கு'} விநியோகிக்க முடியும். இடது பக்க Curation Space இல் விவரங்களைச் சரிபார்த்து பணம் செலுத்தலாம்! 🎁`;
+        reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். உங்கள் தேவைக்கேற்ப ${bundle.items.length} பொருட்களை நான் கூடையில் சேர்த்துள்ளேன், இதனை ${bundle.city || 'உங்கள் இடத்திற்கு'} விநியோகிக்க முடியும். இடது பக்க Curation Space இல் விவரங்களைச் சரிபார்த்து பணம் செலுத்தலாம்! 🎁`;
       } else {
-        reply += `தற்போது பொருத்தமான பொருட்கள் எதுவும் இல்லை. 😕 உங்களுக்கு கேக், ரோஜாக்கள் அல்லது வாழ்த்து அட்டைகள் ஏதேனும் தேவையா என்று எனக்குக் கூறவும்!`;
+        reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். தற்போது பொருத்தமான பொருட்கள் எதுவும் இல்லை. 😕 உங்களுக்கு கேக், ரோஜாக்கள் அல்லது வாழ்த்து அட்டைகள் ஏதேனும் தேவையா என்று எனக்குக் கூறவும்!`;
       }
     } else if (isSinhala) {
-      reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. `;
-      if (bundle.budget_exceeded) {
-        reply += `නමුත් තෝරාගත් භාණ්ඩවල මුළු මිල (රු. ${bundle.total.toLocaleString()} LKR) ඔයාගේ budget එකට වඩා වැඩියි. කරුණාකර වෙනත් අඩු මිල භාණ්ඩයක් තෝරාගන්න හෝ budget එක වැඩි කරන්න! 😕`;
+      if (isGreeting) {
+        reply = `හලෝ! මම ඔයාට අද උදව් කරන්නේ කොහොමද? ඔයාට ලස්සන රෝස මල්, රසවත් කේක්, චොකලට් හෝ තෑගි හැම්පර් එකක් අවශ්‍යද? 😊`;
+      } else if (bundle.budget_exceeded) {
+        reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. නමුත් තෝරාගත් භාණ්ඩවල මුළු මිල (රු. ${bundle.total.toLocaleString()} LKR) ඔයාගේ budget එකට වඩා වැඩියි. කරුණාකර වෙනත් අඩු මිල භාණ්ඩයක් තෝරාගන්න හෝ budget එක වැඩි කරන්න! 😕`;
       } else if (bundle.items.length > 0) {
-        reply += `ඔයාගේ අවශ්‍යතාවයට ගැළපෙන භාණ්ඩ ${bundle.items.length} ක් මම හැම්පර් එකට එකතු කළා, එය ${bundle.city || 'ඔයාගේ නගරයට'} ලබා දිය හැකියි. වම් පස ඇති Curation Space එකෙන් විස්තර පරීක්ෂා කර checkout කරන්න පුළුවන්! 🎁`;
+        reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. ඔයාගේ අවශ්‍යතාවයට ගැළපෙන භාණ්ඩ ${bundle.items.length} ක් මම හැම්පර් එකට එකතු කළා, එය ${bundle.city || 'ඔයාගේ නගරයට'} ලබා දිය හැකියි. වම් පස ඇති Curation Space එකෙන් විස්තර පරීක්ෂා කර checkout කරන්න පුළුවන්! 🎁`;
       } else {
-        reply += `මට මේ වෙලාවේ ගැළපෙන භාණ්ඩ සොයාගැනීමට නොහැකි වුණා. 😕 ඔයාට කේක්, රෝස මල් හෝ සුබපැතුම් පත් අවශ්‍යද කියා මට කියන්න!`;
+        reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. මට මේ වෙලාවේ ගැළපෙන භාණ්ඩ සොයාගැනීමට නොහැකි වුණා. 😕 ඔයාට කේක්, රෝස මල් හෝ සුබපැතුම් පත් අවශ්‍යද කියා මට කියන්න!`;
       }
     } else if (isTanglish) {
-      reply = `Vanakkam! Ungaloda request ah check pannen. `;
-      if (bundle.budget_exceeded) {
-        reply += `Aana neenga select panna items total price (Rs. ${bundle.total.toLocaleString()} LKR) ungaloda budget ah vida adhigama iruku. Cheaper option edhavadhu pakalama, illa budget ah adhigam panalama? 😕`;
+      if (isGreeting) {
+        reply = `Vanakkam! Naan ungaluku eppadi help panna mudiyum? Ungaluku cake, roses, chocolates, illa hamper edhavadhu pakadhumo? 😊`;
+      } else if (bundle.budget_exceeded) {
+        reply = `Vanakkam! Ungaloda request ah check pannen. Aana neenga select panna items total price (Rs. ${bundle.total.toLocaleString()} LKR) ungaloda budget ah vida adhigama iruku. Cheaper option edhavadhu pakalama, illa budget ah adhigam panalama? 😕`;
       } else if (bundle.items.length > 0) {
-        reply += `Ungaloda request ku matching ah ${bundle.items.length} items hamper la add panni iruken, idhai ${bundle.city || 'ungaloda destination'} ku deliver panna mudiyum. Left side Curation Space la details check panni checkout pannunga! 🎁`;
+        reply = `Vanakkam! Ungaloda request ah check pannen. Ungaloda request ku matching ah ${bundle.items.length} items hamper la add panni iruken, idhai ${bundle.city || 'ungaloda destination'} ku deliver panna mudiyum. Left side Curation Space la details check panni checkout pannunga! 🎁`;
       } else {
-        reply += `Enaku matching items stock la kandupidika mudiyala. 😕 Ungaluku cakes, roses, illa greeting cards edhavadhu venuma nu sollunga!`;
+        reply = `Vanakkam! Ungaloda request ah check pannen. Enaku matching items stock la kandupidika mudiyala. 😕 Ungaluku cakes, roses, illa greeting cards edhavadhu venuma nu sollunga!`;
       }
     } else if (isSinglish) {
-      reply = `Hari! Mama oyage request eka check kala. `;
-      if (bundle.budget_exceeded) {
-        reply += `But selected items wala total price (Rs. ${bundle.total.toLocaleString()} LKR) oyage budget ekata wada wadi. Dynamic items check karala budget eka wadi karanna puluwanda, natham card wage adu price item ekak balamuda? 😕`;
+      if (isGreeting) {
+        reply = `Hello! Mama oyata kohomada help karanna one? Oyatath cake ekak, roses, chocolates nathnam hamper ekak balannada one? 😊`;
+      } else if (bundle.budget_exceeded) {
+        reply = `Hari! Mama oyage request eka check kala. But selected items wala total price (Rs. ${bundle.total.toLocaleString()} LKR) oyage budget ekata wada wadi. Dynamic items check karala budget eka wadi karanna puluwanda, natham card wage adu price item ekak balamuda? 😕`;
       } else if (bundle.items.length > 0) {
-        reply += `I've put together a hamper with ${bundle.items.length} item(s) matching your request, deliverable to ${bundle.city || 'your destination'}. Left side layout eken details check karala checkout karanna puluwani! 🎁`;
+        reply = `Hari! Mama oyage request eka check kala. I've put together a hamper with ${bundle.items.length} item(s) matching your request, deliverable to ${bundle.city || 'your destination'}. Left side layout eken details check karala checkout karanna puluwani! 🎁`;
       } else {
-        reply += `Mata matching items stock eke hoyaganna bari unaa. 😕 Let me know if you would like me to search for cakes, roses, or custom greeting cards!`;
+        reply = `Hari! Mama oyage request eka check kala. Mata matching items stock eke hoyaganna bari unaa. 😕 Let me know if you would like me to search for cakes, roses, or custom greeting cards!`;
       }
     } else {
-      reply = `Hari! I've checked your request. `;
-      if (bundle.budget_exceeded) {
-        reply += `However, the total price of Rs. ${bundle.total.toLocaleString()} LKR exceeds your budget limit of Rs. ${intent.max_budget?.toLocaleString()} LKR. Let me know if we should check cheaper options (like cards or chocolates) or if you would like to increase the budget limit! 😕`;
+      if (isGreeting) {
+        reply = `Hello! How can I help you today? Are you looking for some fresh flowers, cakes, chocolates, or a custom gift hamper? 😊`;
+      } else if (bundle.budget_exceeded) {
+        reply = `Hari! I've checked your request. However, the total price of Rs. ${bundle.total.toLocaleString()} LKR exceeds your budget limit of Rs. ${intent.max_budget?.toLocaleString()} LKR. Let me know if we should check cheaper options (like cards or chocolates) or if you would like to increase the budget limit! 😕`;
       } else if (bundle.items.length > 0) {
-        reply += `I have successfully compiled a hamper containing ${bundle.items.length} item(s) matching your request, deliverable to ${bundle.city || 'your destination'}. You can review the details on the left Curation Space and proceed to checkout! 🎁`;
+        reply = `Hari! I've checked your request. I have successfully compiled a hamper containing ${bundle.items.length} item(s) matching your request, deliverable to ${bundle.city || 'your destination'}. You can review the details on the left Curation Space and proceed to checkout! 🎁`;
       } else {
-        reply += `I couldn't find matching items in stock right now. Let me know if you would like me to search for roses, cakes, or custom greeting cards!`;
+        reply = `Hari! I've checked your request. I couldn't find matching items in stock right now. Let me know if you would like me to search for roses, cakes, or custom greeting cards!`;
       }
     }
     return reply;
