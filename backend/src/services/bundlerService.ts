@@ -79,52 +79,76 @@ export class BundlerService {
       }
     }
 
+    interface ProductToCheck {
+      prod: any;
+      keyword: string;
+    }
+    const allCandidates: ProductToCheck[] = [];
     for (const categoryResult of searchResults) {
       const { keyword, products } = categoryResult;
-      const verifiedProducts: any[] = [];
-
       for (const prod of products) {
-        let deliverable = true;
-        let perishable = false;
+        allCandidates.push({ prod, keyword });
+      }
+    }
 
-        // Pre-emptive delivery check
-        if (targetCityCanonical && delivery_date) {
-          try {
-            const check = await mcpClient.checkDelivery(targetCityCanonical, delivery_date, prod.product_id || prod.id);
-            deliverable = check?.deliverable ?? check?.data?.deliverable ?? true;
-            perishable = check?.perishable_warning ?? check?.data?.perishable_warning ?? false;
-            
-            if (check?.delivery_charge || check?.data?.delivery_charge) {
-              estimatedDeliveryCharge = check.delivery_charge || check.data.delivery_charge;
-            }
-          } catch (err) {
-            console.error(`Logistics check failed for product ${prod.id || prod.product_id}:`, err);
-            // Fallback: assume deliverable but check if cake/flower for warning
-            const nameLower = (prod.name || '').toLowerCase();
-            perishable = nameLower.includes('cake') || nameLower.includes('flower') || nameLower.includes('rose');
+    const checkPromises = allCandidates.map(async ({ prod, keyword }) => {
+      let deliverable = true;
+      let perishable = false;
+      let deliveryCharge = null;
+
+      if (targetCityCanonical && delivery_date) {
+        try {
+          const check = await mcpClient.checkDelivery(targetCityCanonical, delivery_date, prod.product_id || prod.id);
+          deliverable = check?.deliverable ?? check?.data?.deliverable ?? true;
+          perishable = check?.perishable_warning ?? check?.data?.perishable_warning ?? false;
+          if (check?.delivery_charge || check?.data?.delivery_charge) {
+            deliveryCharge = check.delivery_charge || check.data.delivery_charge;
           }
-        } else {
-          // If no city, guess perishable warning
+        } catch (err) {
+          console.error(`Logistics check failed for product ${prod.id || prod.product_id}:`, err);
           const nameLower = (prod.name || '').toLowerCase();
           perishable = nameLower.includes('cake') || nameLower.includes('flower') || nameLower.includes('rose');
         }
-
-        if (deliverable) {
-          verifiedProducts.push({
-            id: prod.id || prod.product_id,
-            name: prod.name,
-            price: Number(prod.price),
-            image: prod.image || prod.image_url || (prod.images && prod.images[0]),
-            category: keyword,
-            perishable,
-            url: prod.url || prod.product_url,
-          });
-        }
+      } else {
+        const nameLower = (prod.name || '').toLowerCase();
+        perishable = nameLower.includes('cake') || nameLower.includes('flower') || nameLower.includes('rose');
       }
 
-      if (verifiedProducts.length > 0) {
-        candidatesPerCategory[keyword] = verifiedProducts.sort((a, b) => a.price - b.price); // sort cheap to expensive
+      return {
+        prod,
+        keyword,
+        deliverable,
+        perishable,
+        deliveryCharge
+      };
+    });
+
+    const checkResults = await Promise.all(checkPromises);
+
+    for (const res of checkResults) {
+      if (!res.deliverable) continue;
+
+      if (res.deliveryCharge) {
+        estimatedDeliveryCharge = res.deliveryCharge;
       }
+
+      if (!candidatesPerCategory[res.keyword]) {
+        candidatesPerCategory[res.keyword] = [];
+      }
+
+      candidatesPerCategory[res.keyword].push({
+        id: res.prod.id || res.prod.product_id,
+        name: res.prod.name,
+        price: Number(res.prod.price),
+        image: res.prod.image || res.prod.image_url || (res.prod.images && res.prod.images[0]),
+        category: res.keyword,
+        perishable: res.perishable,
+        url: res.prod.url || res.prod.product_url,
+      });
+    }
+
+    for (const kw in candidatesPerCategory) {
+      candidatesPerCategory[kw].sort((a, b) => a.price - b.price);
     }
 
     // 3. Assemble and Optimize Bundle

@@ -13,6 +13,22 @@ export class KaprukaMcpClient {
     // Session is established lazily on first request
   }
 
+  private async fetchWithTimeout(url: string, options: any, timeoutMs = 8000): Promise<Response> {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return response;
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
+    }
+  }
+
   /**
    * Performs the Streamable HTTP handshake to initialize the session and extract the session ID.
    */
@@ -23,7 +39,7 @@ export class KaprukaMcpClient {
 
     try {
       // 1. Send initialize request
-      const initRes = await fetch(MCP_ENDPOINT, {
+      const initRes = await this.fetchWithTimeout(MCP_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -44,7 +60,7 @@ export class KaprukaMcpClient {
             },
           },
         }),
-      });
+      }, 8000);
 
       if (!initRes.ok) {
         const bodyText = await initRes.text();
@@ -60,7 +76,7 @@ export class KaprukaMcpClient {
       console.log(`[MCP] Session established successfully. ID: ${this.sessionId}`);
 
       // 2. Send initialized notification (required by MCP protocol)
-      await fetch(MCP_ENDPOINT, {
+      await this.fetchWithTimeout(MCP_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -71,7 +87,7 @@ export class KaprukaMcpClient {
           jsonrpc: '2.0',
           method: 'notifications/initialized',
         }),
-      });
+      }, 5000);
 
       return this.sessionId;
     } catch (err) {
@@ -116,7 +132,7 @@ export class KaprukaMcpClient {
     };
 
     try {
-      const response = await fetch(MCP_ENDPOINT, {
+      const response = await this.fetchWithTimeout(MCP_ENDPOINT, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -124,7 +140,7 @@ export class KaprukaMcpClient {
           'mcp-session-id': sessionId,
         },
         body: JSON.stringify(payload),
-      });
+      }, 6000);
 
       if (!response.ok) {
         const bodyText = await response.text();

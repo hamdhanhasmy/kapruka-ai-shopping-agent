@@ -1,8 +1,9 @@
 {
-  "tool": "kapruka_list_delivery_cities",
+  "tool": "kapruka_check_delivery",
   "arguments": {
-    "query": "Kandy",
-    "limit": 1
+    "city": "Kandy",
+    "delivery_date": "2026-06-29",
+    "product_id": "EF_PC_HAMP0V18POD00018P"
   },
-  "rawResponse": "event: message\r\ndata: {\"jsonrpc\":\"2.0\",\"id\":3,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"## Kapruka delivery cities — 'Kandy' (1 of 1)\\n\\n- **Kandy**  _aliases: galagedara_\"}],\"structuredContent\":{\"result\":\"## Kapruka delivery cities — 'Kandy' (1 of 1)\\n\\n- **Kandy**  _aliases: galagedara_\"},\"isError\":false}}\r\n\r\n"
+  "rawResponse": "event: message\r\ndata: {\"jsonrpc\":\"2.0\",\"id\":14,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"## Delivery to Kandy on 2026-06-29\\n**Available** — flat rate LKR 1,075\"}],\"structuredContent\":{\"result\":\"## Delivery to Kandy on 2026-06-29\\n**Available** — flat rate LKR 1,075\"},\"isError\":false}}\r\n\r\n"
 }

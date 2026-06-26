@@ -123,9 +123,10 @@ export class NlpService {
     if (this.genAIInstances.length > 0) {
       try {
         return await this.executeWithRotation(async (genAI, modelName) => {
-          const requestOptions = process.env.GEMINI_BASE_URL ? {
-            baseUrl: process.env.GEMINI_BASE_URL
-          } : undefined;
+          const requestOptions: any = { timeout: 8000 };
+          if (process.env.GEMINI_BASE_URL) {
+            requestOptions.baseUrl = process.env.GEMINI_BASE_URL;
+          }
 
           const model = genAI.getGenerativeModel({
             model: modelName,
@@ -389,9 +390,10 @@ export class NlpService {
     if (this.genAIInstances.length > 0) {
       try {
         return await this.executeWithRotation(async (genAI, modelName) => {
-          const requestOptions = process.env.GEMINI_BASE_URL ? {
-            baseUrl: process.env.GEMINI_BASE_URL
-          } : undefined;
+          const requestOptions: any = { timeout: 8000 };
+          if (process.env.GEMINI_BASE_URL) {
+            requestOptions.baseUrl = process.env.GEMINI_BASE_URL;
+          }
 
           const model = genAI.getGenerativeModel({ model: modelName }, requestOptions);
           
