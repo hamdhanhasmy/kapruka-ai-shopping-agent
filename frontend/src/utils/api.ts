@@ -14,6 +14,7 @@ export interface ChatResponse {
     delivery_address?: string | null;
     sender_name?: string | null;
     is_self_shopping?: boolean;
+    hamper_title?: string | null;
   };
   bundle: {
     items: Array<{
@@ -52,13 +53,17 @@ export interface ChatHistoryItem {
   text: string;
 }
 
-export async function sendMessageToConcierge(text: string, history: ChatHistoryItem[] = []): Promise<ChatResponse> {
+export async function sendMessageToConcierge(
+  text: string,
+  history: ChatHistoryItem[] = [],
+  currentState?: Record<string, any>
+): Promise<ChatResponse> {
   const response = await fetch(`${API_BASE_URL}/chat`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ text, history }),
+    body: JSON.stringify({ text, history, currentState }),
   });
 
   if (!response.ok) {

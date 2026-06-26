@@ -1,9 +1,9 @@
 {
   "tool": "kapruka_check_delivery",
   "arguments": {
-    "city": "Kandy",
+    "city": "Colombo 01",
     "delivery_date": "2026-06-29",
-    "product_id": "EF_PC_HAMP0V18POD00018P"
+    "product_id": "FLOWERS00T2032"
   },
-  "rawResponse": "event: message\r\ndata: {\"jsonrpc\":\"2.0\",\"id\":14,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"## Delivery to Kandy on 2026-06-29\\n**Available** — flat rate LKR 1,075\"}],\"structuredContent\":{\"result\":\"## Delivery to Kandy on 2026-06-29\\n**Available** — flat rate LKR 1,075\"},\"isError\":false}}\r\n\r\n"
+  "rawResponse": "event: message\r\ndata: {\"jsonrpc\":\"2.0\",\"id\":21,\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"## Delivery to Colombo 01 on 2026-06-29\\n**Available** — flat rate LKR 300\\n\\nNote: Product `FLOWERS00T2032` looks like a perishable item (cake/flower/combo). Same-day or next-day delivery is recommended; freshness on 2026-06-29 is not guaranteed.\"}],\"structuredContent\":{\"result\":\"## Delivery to Colombo 01 on 2026-06-29\\n**Available** — flat rate LKR 300\\n\\nNote: Product `FLOWERS00T2032` looks like a perishable item (cake/flower/combo). Same-day or next-day delivery is recommended; freshness on 2026-06-29 is not guaranteed.\"},\"isError\":false}}\r\n\r\n"
 }

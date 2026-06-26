@@ -71,7 +71,7 @@ app.listen(PORT, () => {
         const requestOptions = process.env.GEMINI_BASE_URL ? {
           baseUrl: process.env.GEMINI_BASE_URL
         } : undefined;
-        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' }, requestOptions);
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' }, requestOptions);
         const response = await model.generateContent('Hi');
         reports.push({ index: i, key: maskedKey, success: true, text: response.response.text().trim() });
       } catch (err: any) {

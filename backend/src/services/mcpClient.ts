@@ -278,12 +278,24 @@ export class KaprukaMcpClient {
     return cities;
   }
 
-  /**
-   * Parses the delivery validation text.
-   */
   private parseDeliveryViability(markdown: string): any {
     const textLower = markdown.toLowerCase();
-    const deliverable = !textLower.includes('not deliverable') && !textLower.includes('unavailable') && !textLower.includes('cannot');
+    
+    // Evaluate deliverability by looking at the status header/lines to prevent false positives from disclaimers at the bottom
+    const headerText = markdown.split('\n').slice(0, 3).join('\n').toLowerCase();
+    let deliverable = true;
+    if (
+      headerText.includes('not available') ||
+      headerText.includes('not deliverable') ||
+      headerText.includes('unavailable') ||
+      headerText.includes('cannot')
+    ) {
+      deliverable = false;
+    } else if (headerText.includes('available')) {
+      deliverable = true;
+    } else {
+      deliverable = !headerText.includes('fail') && !headerText.includes('error');
+    }
     
     let delivery_charge = 350; // default flat LKR rate
     const chargeMatch = markdown.match(/\b(?:LKR|Rs\.?)[^\d]*([\d,]+)/i);
@@ -299,6 +311,7 @@ export class KaprukaMcpClient {
       perishable_warning,
     };
   }
+
 
   /**
    * Parses the checkout URL creation text.

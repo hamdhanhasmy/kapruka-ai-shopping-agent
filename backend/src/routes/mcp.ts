@@ -1,6 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { mcpClient } from '../services/mcpClient.js';
-import { nlpService } from '../services/nlpService.js';
+import { nlpService, normalizeIntent } from '../services/nlpService.js';
 import { bundlerService } from '../services/bundlerService.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import fs from 'fs';
@@ -52,7 +52,7 @@ router.get(
           baseUrl: process.env.GEMINI_BASE_URL
         } : undefined;
 
-        const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' }, requestOptions);
+        const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' }, requestOptions);
         const response = await model.generateContent('Hello! Answer in 1 word.');
         const text = response.response.text().trim();
         logs.push(`  Success! Response: "${text}"`);
@@ -78,20 +78,36 @@ router.get(
 router.post(
   '/chat',
   asyncHandler(async (req: Request, res: Response) => {
-    const { text, history } = req.body;
+    const { text, history, currentState } = req.body;
     if (!text) {
       return res.status(400).json({ success: false, error: 'Request body must contain "text" property' });
     }
     const intent = await nlpService.parseUserIntent(text, history);
-    if (intent.target_city) {
-      intent.target_city = await nlpService.resolveCanonicalCity(intent.target_city);
+
+    // Merge current UI state values if not extracted in the current chat turn
+    let mergedIntent = intent;
+    if (currentState) {
+      if (!intent.recipient_name && currentState.recipientName) intent.recipient_name = currentState.recipientName;
+      if (!intent.recipient_phone && currentState.recipientPhone) intent.recipient_phone = currentState.recipientPhone;
+      if (!intent.delivery_address && currentState.deliveryAddress) intent.delivery_address = currentState.deliveryAddress;
+      if (!intent.target_city && currentState.city) intent.target_city = currentState.city;
+      if (!intent.delivery_date && currentState.deliveryDate) intent.delivery_date = currentState.deliveryDate;
+      if (!intent.sender_name && currentState.senderName) intent.sender_name = currentState.senderName;
+      if (typeof intent.is_self_shopping !== 'boolean' && typeof currentState.isSelfShopping === 'boolean') {
+        intent.is_self_shopping = currentState.isSelfShopping;
+      }
+      mergedIntent = normalizeIntent(intent);
     }
-    const bundle = await bundlerService.compileBundle(intent);
-    const reply = await nlpService.generateChatReply(text, intent, bundle, history);
+
+    if (mergedIntent.target_city) {
+      mergedIntent.target_city = await nlpService.resolveCanonicalCity(mergedIntent.target_city);
+    }
+    const bundle = await bundlerService.compileBundle(mergedIntent, currentState?.cart || []);
+    const reply = await nlpService.generateChatReply(text, mergedIntent, bundle, history, currentState?.cart);
     res.json({
       success: true,
       data: {
-        intent,
+        intent: mergedIntent,
         bundle,
         reply,
       },

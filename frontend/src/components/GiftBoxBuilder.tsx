@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Gift, PackageOpen, Trash2, ShoppingCart } from 'lucide-react';
+import { Gift, PackageOpen, Trash2, ShoppingCart, ExternalLink } from 'lucide-react';
 
 interface CartItem {
   id: string | number;
@@ -9,15 +9,17 @@ interface CartItem {
   price: number;
   quantity: number;
   image?: string;
+  url?: string;
 }
 
 interface GiftBoxBuilderProps {
   items: CartItem[];
   onRemoveItem: (id: string | number) => void;
   onClear: () => void;
+  title?: string;
 }
 
-export default function GiftBoxBuilder({ items, onRemoveItem, onClear }: GiftBoxBuilderProps) {
+export default function GiftBoxBuilder({ items, onRemoveItem, onClear, title = 'Shopping Cart & Hamper Builder' }: GiftBoxBuilderProps) {
   const total = items.reduce((acc, item) => acc + item.price * item.quantity, 0);
 
   return (
@@ -26,7 +28,7 @@ export default function GiftBoxBuilder({ items, onRemoveItem, onClear }: GiftBox
         <div className="flex items-center gap-3">
           <ShoppingCart className="text-kapruka-purple w-6 h-6" />
           <h2 className="font-serif text-2xl font-bold text-kapruka-purple tracking-tight">
-            Shopping Cart & Hamper Builder
+            {title}
           </h2>
         </div>
         {items.length > 0 && (
@@ -81,7 +83,20 @@ export default function GiftBoxBuilder({ items, onRemoveItem, onClear }: GiftBox
                     {item.name}
                   </h4>
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[10px] text-gray-500 font-medium">Qty: {item.quantity}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[10px] text-gray-500 font-medium">Qty: {item.quantity}</span>
+                      {item.url && (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-gray-400 hover:text-kapruka-purple transition-colors duration-200"
+                          title="View on Kapruka"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
                     <span className="text-xs font-bold text-kapruka-purple">
                       Rs. {(item.price * item.quantity).toLocaleString()}
                     </span>

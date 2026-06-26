@@ -18,6 +18,39 @@ export interface ParsedIntent {
   delivery_address: string | null;
   sender_name: string | null;
   is_self_shopping: boolean;
+  hamper_title?: string | null;
+}
+
+export function normalizeIntent(intent: ParsedIntent): ParsedIntent {
+  const check = (val: any): string | null => {
+    if (val === undefined || val === null) return null;
+    const str = String(val).trim();
+    const lower = str.toLowerCase();
+    if (lower === 'not specified' || lower === 'null' || lower === 'undefined' || lower === '') {
+      return null;
+    }
+    return str;
+  };
+
+  return {
+    items: Array.isArray(intent.items)
+      ? intent.items.map(i => String(i).trim()).filter(i => {
+          const l = i.toLowerCase();
+          return l !== '' && l !== 'null' && l !== 'not specified';
+        })
+      : [],
+    target_city: check(intent.target_city),
+    delivery_date: check(intent.delivery_date),
+    max_budget: typeof intent.max_budget === 'number' ? intent.max_budget : (intent.max_budget ? Number(intent.max_budget) : null),
+    gift_message: check(intent.gift_message),
+    recipient_relation: check(intent.recipient_relation),
+    recipient_name: check(intent.recipient_name),
+    recipient_phone: check(intent.recipient_phone),
+    delivery_address: check(intent.delivery_address),
+    sender_name: check(intent.sender_name),
+    is_self_shopping: typeof intent.is_self_shopping === 'boolean' ? intent.is_self_shopping : false,
+    hamper_title: check(intent.hamper_title),
+  };
 }
 
 export class NlpService {
@@ -57,7 +90,7 @@ export class NlpService {
       throw new Error('No GoogleGenerativeAI clients initialized.');
     }
 
-    const modelsToTry = ['gemini-flash-latest', 'gemini-2.5-flash'];
+    const modelsToTry = ['gemini-2.5-flash', 'gemini-flash-latest'];
     let lastError: any = null;
 
     // Try each model in sequence
@@ -161,6 +194,7 @@ export class NlpService {
              - "is_self_shopping": Boolean. Set to true if the customer is ordering/purchasing for themselves (Self-Shopping mode). Set to false if they are sending it as a gift to someone else (Gifting mode).
                - Self-Shopping mode (true) is the default unless they explicitly mention sending it to another person (e.g. "amma", "friend", "sister", "wife"), use words like "gift", "surprise", or provide a recipient name separate from their own.
                - If they say "mata" (for me), "ewanna" (send to me), "my address", "my name", "my phone", "ordering for myself", set this to true.
+             - "hamper_title": A creative, personalized short title (3-5 words) for this cart/hamper bundle, based on the items, recipient relation, city, or purpose. Examples: "Amma's Sweet Birthday Surprise", "Kandy Snack Attack Box", "Weekly Grocery Staples", "Galle Avurudu Treats". If nothing is specified, default to a general name like "Bespoke Hamper Bundle".
                
               CRITICAL RULES for Self-Shopping mode (is_self_shopping is true):
               - If they mention their own name (e.g. "mage nama Hamsey"), set BOTH "recipient_name" and "sender_name" to that name.
@@ -169,12 +203,12 @@ export class NlpService {
              ${historyPrompt}
              User Query: "${query}"
 
-             Return ONLY a JSON block with these keys: items (array), target_city (string or null), delivery_date (string or null), max_budget (number or null), gift_message (string or null), recipient_relation (string or null), recipient_name (string or null), recipient_phone (string or null), delivery_address (string or null), sender_name (string or null), is_self_shopping (boolean).
+             Return ONLY a JSON block with these keys: items (array), target_city (string or null), delivery_date (string or null), max_budget (number or null), gift_message (string or null), recipient_relation (string or null), recipient_name (string or null), recipient_phone (string or null), delivery_address (string or null), sender_name (string or null), is_self_shopping (boolean), hamper_title (string or null).
            `;
 
           const result = await model.generateContent(prompt);
           const text = result.response.text();
-          return JSON.parse(text) as ParsedIntent;
+          return normalizeIntent(JSON.parse(text) as ParsedIntent);
         });
       } catch (error) {
         console.error('All Gemini clients failed for intent parsing, falling back to rule-based:', error);
@@ -333,7 +367,26 @@ export class NlpService {
     const recipient_name = is_self_shopping ? extractedName : null;
     const sender_name = extractedName;
 
-    return {
+    // Generate a simple rule-based hamper title
+    let hamper_title = 'Bespoke Hamper Bundle';
+    if (is_self_shopping) {
+      if (items.includes('cake')) hamper_title = 'My Birthday Cake Delight';
+      else if (items.includes('roses') || items.includes('flowers')) hamper_title = 'My Fresh Floral Collection';
+      else hamper_title = 'Everyday Staples Cart';
+    } else {
+      const relationLabel = recipient_relation ? (recipient_relation.charAt(0).toUpperCase() + recipient_relation.slice(1)) : 'Special Someone';
+      if (items.includes('cake') && (items.includes('roses') || items.includes('flowers'))) {
+        hamper_title = `${relationLabel}'s Celebration Hamper`;
+      } else if (items.includes('cake')) {
+        hamper_title = `${relationLabel}'s Cake Surprise`;
+      } else if (items.includes('roses') || items.includes('flowers')) {
+        hamper_title = `${relationLabel}'s Floral Surprise`;
+      } else {
+        hamper_title = `Special Gift for ${relationLabel}`;
+      }
+    }
+
+    return normalizeIntent({
       items,
       target_city,
       delivery_date,
@@ -345,7 +398,8 @@ export class NlpService {
       delivery_address: null,
       sender_name,
       is_self_shopping,
-    };
+      hamper_title,
+    });
   }
 
   /**
@@ -385,7 +439,8 @@ export class NlpService {
     query: string,
     intent: ParsedIntent,
     bundle: any,
-    history?: any[]
+    history?: any[],
+    cart?: any[]
   ): Promise<string> {
     if (this.genAIInstances.length > 0) {
       try {
@@ -414,14 +469,31 @@ export class NlpService {
             ${historyPrompt}
             Under the hood, we ran searches and logistics verification. Here are the results:
             - Items compiled in the hamper: ${JSON.stringify(bundle.items.map((i: any) => ({ name: i.name, price: i.price, category: i.category })))}
-            - Target City: ${bundle.city || 'Not specified'}
-            - Delivery Date: ${bundle.delivery_date || 'Not specified'}
+            - Current Items in user's UI Shopping Cart: ${JSON.stringify((cart || []).map((i: any) => ({ name: i.name, price: i.price, quantity: i.quantity })))}
+            - Target City: ${bundle.city || intent.target_city || 'Not specified'}
+            - Delivery Date: ${bundle.delivery_date || intent.delivery_date || 'Not specified'}
             - Deliverability: ${bundle.is_deliverable ? 'Available' : 'Unavailable'}
             - Perishable Warning: ${bundle.perishable_warning ? 'Yes' : 'No'}
             - Budget Limit: ${intent.max_budget ? intent.max_budget + ' LKR' : 'None'}
             - Budget Exceeded: ${bundle.budget_exceeded ? 'Yes' : 'No'}
-            - Recipient: ${intent.recipient_relation || 'Not specified'}
+            - Recipient Relation: ${intent.recipient_relation || 'Not specified'}
+            - Recipient Name: ${intent.recipient_name || 'Not specified'}
+            - Recipient Phone: ${intent.recipient_phone || 'Not specified'}
+            - Delivery Address: ${intent.delivery_address || 'Not specified'}
+            - Sender Name: ${intent.sender_name || 'Not specified'}
+            - Is Self-Shopping Mode: ${intent.is_self_shopping ? 'Yes' : 'No'}
             
+            CRITICAL INFO COLLECTION RULES (when items are in the compiled hamper or the user's UI Shopping Cart):
+            1. If the hamper/cart is NOT empty (meaning items are present in either the compiled hamper list or the user's UI Shopping Cart), your primary goal is to collect any missing delivery and checkout information.
+            2. Check which of the following are missing ("Not specified") and ask for them politely, conversationally, and one at a time (or together if natural) in the USER's EXACT talking language and script (Tamil script, Sinhala script, Singlish, Tanglish, or English):
+               - Recipient Name & Phone number (e.g. if Is Self-Shopping Mode is No, ask who is receiving the gift and their contact phone number. If Is Self-Shopping Mode is Yes, ask for their own name and phone number).
+               - Delivery Address: If only the Delivery City is specified (e.g. "Kandy" or "Colombo 03") but the Delivery Address is "Not specified", you MUST explicitly ask for the full street address (e.g. house number and street).
+               - Delivery City (if not specified).
+               - Delivery Date (if not specified).
+               - Sender's Name: (if Is Self-Shopping Mode is No, ask for the sender's name for the gift card. If Is Self-Shopping Mode is Yes, you do not need to ask for a sender name).
+            3. Do not ask for details that are already specified (not set to "Not specified"). Only ask for the missing ones.
+            4. Make your questions feel warm, human, and local (e.g. using Singlish/Tanglish phrasing if the user is using it).
+
             Guidelines for your response:
             1. Speak naturally like a human shopping concierge. Avoid templates. Respond in the EXACT same language and script that the user addressed you in:
                - If the user wrote in Tamil script, reply in warm, helpful Tamil script.
@@ -463,60 +535,219 @@ export class NlpService {
     });
 
     let reply = '';
+    let langKey: 'english' | 'sinhala' | 'tamil' | 'singlish' | 'tanglish' = 'english';
+    if (isTamil) langKey = 'tamil';
+    else if (isSinhala) langKey = 'sinhala';
+    else if (isTanglish) langKey = 'tanglish';
+    else if (isSinglish) langKey = 'singlish';
+
+    const missingPrompt = getRuleBasedMissingDetailsPrompt(intent, cart, bundle, langKey);
+
     if (isTamil) {
       if (isGreeting) {
-        reply = `வணக்கம்! நான் உங்களுக்கு இன்று எவ்வாறு உதவ முடியும்? உங்களுக்கு புதிய பூக்கள், கேக், சாக்லேட் அல்லது பரிசு கூடை ஏதேனும் தேவையா? 😊`;
+        if (missingPrompt) {
+          reply = `வணக்கம்! நான் உங்களுக்கு எவ்வாறு உதவ முடியும்? உங்கள் கூடையில் பொருட்கள் உள்ளன. ${missingPrompt}`;
+        } else {
+          reply = `வணக்கம்! நான் உங்களுக்கு இன்று எவ்வாறு உதவ முடியும்? உங்களுக்கு புதிய பூக்கள், கேக், சாக்லேட் அல்லது பரிசு கூடை ஏதேனும் தேவையா? 😊`;
+        }
       } else if (bundle.budget_exceeded) {
         reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். இருப்பினும், தேர்ந்தெடுக்கப்பட்ட பொருட்களின் மொத்த விலை (ரூ. ${bundle.total.toLocaleString()} LKR) உங்கள் பட்ஜெட்டைக் காட்டிலும் அதிகமாக உள்ளது. மலிவான பொருட்கள் ஏதேனும் தேவையா என்று எனக்குக் கூறவும்! 😕`;
       } else if (bundle.items.length > 0) {
-        reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். உங்கள் தேவைக்கேற்ப ${bundle.items.length} பொருட்களை நான் கூடையில் சேர்த்துள்ளேன், இதனை ${bundle.city || 'உங்கள் இடத்திற்கு'} விநியோகிக்க முடியும். இடது பக்க Curation Space இல் விவரங்களைச் சரிபார்த்து பணம் செலுத்தலாம்! 🎁`;
+        if (missingPrompt) {
+          reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். உங்கள் தேவைக்கேற்ப ${bundle.items.length} பொருட்களை நான் கூடையில் சேர்த்துள்ளேன். ${missingPrompt}`;
+        } else {
+          reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். உங்கள் தேவைக்கேற்ப ${bundle.items.length} பொருட்களை நான் கூடையில் சேர்த்துள்ளேன், இதனை ${bundle.city || 'உங்கள் இடத்திற்கு'} விநியோகிக்க முடியும். இடது பக்க Curation Space இல் விவரங்களைச் சரிபார்த்து பணம் செலுத்தலாம்! 🎁`;
+        }
       } else {
-        reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். தற்போது பொருத்தமான பொருட்கள் எதுவும் இல்லை. 😕 உங்களுக்கு கேக், ரோஜாக்கள் அல்லது வாழ்த்து அட்டைகள் ஏதேனும் தேவையா என்று எனக்குக் கூறவும்!`;
+        if (missingPrompt) {
+          reply = `சரி! உங்கள் விபரங்களை நான் புதுப்பித்துள்ளேன். ${missingPrompt}`;
+        } else {
+          reply = `சரி! உங்கள் கோரிக்கையை நான் சரிபார்த்தேன். தற்போது பொருத்தமான பொருட்கள் எதுவும் இல்லை. 😕 உங்களுக்கு கேக், ரோஜாக்கள் அல்லது வாழ்த்து அட்டைகள் ஏதேனும் தேவையா என்று எனக்குக் கூறவும்!`;
+        }
       }
     } else if (isSinhala) {
       if (isGreeting) {
-        reply = `හලෝ! මම ඔයාට අද උදව් කරන්නේ කොහොමද? ඔයාට ලස්සන රෝස මල්, රසවත් කේක්, චොකලට් හෝ තෑගි හැම්පර් එකක් අවශ්‍යද? 😊`;
+        if (missingPrompt) {
+          reply = `හලෝ! මම ඔයාට අද උදව් කරන්නේ කොහොමද? ඔයාගේ හැම්පර් එකේ භාණ්ඩ තිබෙනවා. ${missingPrompt}`;
+        } else {
+          reply = `හලෝ! මම ඔයාට අද උදව් කරන්නේ කොහොමද? ඔයාට ලස්සන රෝස මල්, රසවත් කේක්, චොකලට් හෝ තෑගි හැම්පර් එකක් අවශ්‍යද? 😊`;
+        }
       } else if (bundle.budget_exceeded) {
         reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. නමුත් තෝරාගත් භාණ්ඩවල මුළු මිල (රු. ${bundle.total.toLocaleString()} LKR) ඔයාගේ budget එකට වඩා වැඩියි. කරුණාකර වෙනත් අඩු මිල භාණ්ඩයක් තෝරාගන්න හෝ budget එක වැඩි කරන්න! 😕`;
       } else if (bundle.items.length > 0) {
-        reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. ඔයාගේ අවශ්‍යතාවයට ගැළපෙන භාණ්ඩ ${bundle.items.length} ක් මම හැම්පර් එකට එකතු කළා, එය ${bundle.city || 'ඔයාගේ නගරයට'} ලබා දිය හැකියි. වම් පස ඇති Curation Space එකෙන් විස්තර පරීක්ෂා කර checkout කරන්න පුළුවන්! 🎁`;
+        if (missingPrompt) {
+          reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. ඔයාගේ අවශ්‍යතාවයට ගැළපෙන භාණ්ඩ ${bundle.items.length} ක් මම හැම්පර් එකට එකතු කළා. ${missingPrompt}`;
+        } else {
+          reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. ඔයාගේ අවශ්‍යතාවයට ගැළපෙන භාණ්ඩ ${bundle.items.length} ක් මම හැම්පර් එකට එකතු කළා, එය ${bundle.city || 'ඔයාගේ නගරයට'} ලබා දිය හැකියි. වම් පස ඇති Curation Space එකෙන් විස්තර පරීක්ෂා කර checkout කරන්න පුළුවන්! 🎁`;
+        }
       } else {
-        reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. මට මේ වෙලාවේ ගැළපෙන භාණ්ඩ සොයාගැනීමට නොහැකි වුණා. 😕 ඔයාට කේක්, රෝස මල් හෝ සුබපැතුම් පත් අවශ්‍යද කියා මට කියන්න!`;
+        if (missingPrompt) {
+          reply = `හරි! මම ඔයාගේ විස්තර update කළා. ${missingPrompt}`;
+        } else {
+          reply = `හරි! මම ඔයාගේ ඉල්ලීම පරීක්ෂා කළා. මට මේ වෙලාවේ ගැළපෙන භාණ්ඩ සොයාගැනීමට නොහැකි වුණා. 😕 ඔයාට කේක්, රෝස මල් හෝ සුබපැතුම් පත් අවශ්‍යද කියා මට කියන්න!`;
+        }
       }
     } else if (isTanglish) {
       if (isGreeting) {
-        reply = `Vanakkam! Naan ungaluku eppadi help panna mudiyum? Ungaluku cake, roses, chocolates, illa hamper edhavadhu pakadhumo? 😊`;
+        if (missingPrompt) {
+          reply = `Vanakkam! Naan ungaluku eppadi help panna mudiyum? Unga hamper la items iruku. ${missingPrompt}`;
+        } else {
+          reply = `Vanakkam! Naan ungaluku eppadi help panna mudiyum? Ungaluku cake, roses, chocolates, illa hamper edhavadhu pakadhumo? 😊`;
+        }
       } else if (bundle.budget_exceeded) {
         reply = `Vanakkam! Ungaloda request ah check pannen. Aana neenga select panna items total price (Rs. ${bundle.total.toLocaleString()} LKR) ungaloda budget ah vida adhigama iruku. Cheaper option edhavadhu pakalama, illa budget ah adhigam panalama? 😕`;
       } else if (bundle.items.length > 0) {
-        reply = `Vanakkam! Ungaloda request ah check pannen. Ungaloda request ku matching ah ${bundle.items.length} items hamper la add panni iruken, idhai ${bundle.city || 'ungaloda destination'} ku deliver panna mudiyum. Left side Curation Space la details check panni checkout pannunga! 🎁`;
+        if (missingPrompt) {
+          reply = `Vanakkam! Ungaloda request ku matching ah ${bundle.items.length} items hamper la add panni iruken. ${missingPrompt}`;
+        } else {
+          reply = `Vanakkam! Ungaloda request ku matching ah ${bundle.items.length} items hamper la add panni iruken, idhai ${bundle.city || 'ungaloda destination'} ku deliver panna mudiyum. Left side Curation Space la details check panni checkout pannunga! 🎁`;
+        }
       } else {
-        reply = `Vanakkam! Ungaloda request ah check pannen. Enaku matching items stock la kandupidika mudiyala. 😕 Ungaluku cakes, roses, illa greeting cards edhavadhu venuma nu sollunga!`;
+        if (missingPrompt) {
+          reply = `Hari! Naan unga details ah update pannen. ${missingPrompt}`;
+        } else {
+          reply = `Vanakkam! Ungaloda request ah check pannen. Enaku matching items stock la kandupidika mudiyala. 😕 Ungaluku cakes, roses, illa greeting cards edhavadhu venuma nu sollunga!`;
+        }
       }
     } else if (isSinglish) {
       if (isGreeting) {
-        reply = `Hello! Mama oyata kohomada help karanna one? Oyatath cake ekak, roses, chocolates nathnam hamper ekak balannada one? 😊`;
+        if (missingPrompt) {
+          reply = `Hello! Mama oyata kohomada help karanna one? Oyage hamper eke items thiyenawa. ${missingPrompt}`;
+        } else {
+          reply = `Hello! Mama oyata kohomada help karanna one? Oyatath cake ekak, roses, chocolates nathnam hamper ekak balannada one? 😊`;
+        }
       } else if (bundle.budget_exceeded) {
         reply = `Hari! Mama oyage request eka check kala. But selected items wala total price (Rs. ${bundle.total.toLocaleString()} LKR) oyage budget ekata wada wadi. Dynamic items check karala budget eka wadi karanna puluwanda, natham card wage adu price item ekak balamuda? 😕`;
       } else if (bundle.items.length > 0) {
-        reply = `Hari! Mama oyage request eka check kala. I've put together a hamper with ${bundle.items.length} item(s) matching your request, deliverable to ${bundle.city || 'your destination'}. Left side layout eken details check karala checkout karanna puluwani! 🎁`;
+        if (missingPrompt) {
+          reply = `Hari! Mama oyage request eka check kala. I've put together a hamper with ${bundle.items.length} item(s) matching your request. ${missingPrompt}`;
+        } else {
+          reply = `Hari! Mama oyage request eka check kala. I've put together a hamper with ${bundle.items.length} item(s) matching your request, deliverable to ${bundle.city || 'your destination'}. Left side layout eken details check karala checkout karanna puluwani! 🎁`;
+        }
       } else {
-        reply = `Hari! Mama oyage request eka check kala. Mata matching items stock eke hoyaganna bari unaa. 😕 Let me know if you would like me to search for cakes, roses, or custom greeting cards!`;
+        if (missingPrompt) {
+          reply = `Hari! Mama oyage details update kala. ${missingPrompt}`;
+        } else {
+          reply = `Hari! Mama oyage request eka check kala. Mata matching items stock eke hoyaganna bari unaa. 😕 Let me know if you would like me to search for cakes, roses, or custom greeting cards!`;
+        }
       }
     } else {
       if (isGreeting) {
-        reply = `Hello! How can I help you today? Are you looking for some fresh flowers, cakes, chocolates, or a custom gift hamper? 😊`;
+        if (missingPrompt) {
+          reply = `Hello! How can I help you today? I see you have items in your cart. ${missingPrompt}`;
+        } else {
+          reply = `Hello! How can I help you today? Are you looking for some fresh flowers, cakes, chocolates, or a custom gift hamper? 😊`;
+        }
       } else if (bundle.budget_exceeded) {
         reply = `Hari! I've checked your request. However, the total price of Rs. ${bundle.total.toLocaleString()} LKR exceeds your budget limit of Rs. ${intent.max_budget?.toLocaleString()} LKR. Let me know if we should check cheaper options (like cards or chocolates) or if you would like to increase the budget limit! 😕`;
       } else if (bundle.items.length > 0) {
-        reply = `Hari! I've checked your request. I have successfully compiled a hamper containing ${bundle.items.length} item(s) matching your request, deliverable to ${bundle.city || 'your destination'}. You can review the details on the left Curation Space and proceed to checkout! 🎁`;
+        if (missingPrompt) {
+          reply = `Hari! I've checked your request. I have successfully compiled a hamper containing ${bundle.items.length} item(s) matching your request. ${missingPrompt}`;
+        } else {
+          reply = `Hari! I've checked your request. I have successfully compiled a hamper containing ${bundle.items.length} item(s) matching your request, deliverable to ${bundle.city || 'your destination'}. You can review the details on the left Curation Space and proceed to checkout! 🎁`;
+        }
       } else {
-        reply = `Hari! I've checked your request. I couldn't find matching items in stock right now. Let me know if you would like me to search for roses, cakes, or custom greeting cards!`;
+        if (missingPrompt) {
+          reply = `Hari! I've updated your checkout details. ${missingPrompt}`;
+        } else {
+          reply = `Hari! I've checked your request. I couldn't find matching items in stock right now. Let me know if you would like me to search for roses, cakes, or custom greeting cards!`;
+        }
       }
     }
     return reply;
   }
 }
 
+export function getRuleBasedMissingDetailsPrompt(
+  intent: ParsedIntent,
+  cart: any[] = [],
+  bundle: any,
+  lang: 'english' | 'sinhala' | 'tamil' | 'singlish' | 'tanglish'
+): string | null {
+  const hasItems = (cart && cart.length > 0) || (bundle && bundle.items && bundle.items.length > 0);
+  if (!hasItems) return null;
+
+  const isSelf = !!intent.is_self_shopping;
+
+  const city = intent.target_city || bundle.city;
+  const date = intent.delivery_date || bundle.delivery_date;
+  const address = intent.delivery_address;
+  const recipientName = intent.recipient_name;
+  const recipientPhone = intent.recipient_phone;
+  const senderName = intent.sender_name;
+
+  const isCityMissing = !city;
+  const isDateMissing = !date;
+  const isAddressMissing = !address;
+  const isRecipientMissing = !recipientName || !recipientPhone;
+  const isSenderMissing = !isSelf && !senderName;
+
+  if (isCityMissing) {
+    switch (lang) {
+      case 'sinhala': return 'භාණ්ඩය බෙදාහැරිය යුතු නගරය කුමක්ද? (උදා: Colombo 03, Kandy, Galle)';
+      case 'tamil': return 'பொருட்களை எந்த நகரத்திற்கு வினியோகிக்க வேண்டும்? (உதாரணம்: Colombo 03, Kandy, Galle)';
+      case 'singlish': return 'Delivery city eka mokakda machan? (e.g. Colombo 03, Kandy, Galle)';
+      case 'tanglish': return 'Delivery city enna nu solla mudiyuma? (e.g. Colombo 03, Kandy, Galle)';
+      default: return 'Could you please tell me which city we are delivering to? (e.g. Colombo 03, Kandy, Galle)';
+    }
+  }
+
+  if (isAddressMissing) {
+    switch (lang) {
+      case 'sinhala': 
+        return `නගරය ${city} ලෙස ලැබී ඇත, නමුත් සම්පූර්ණ බෙදාහැරීමේ ලිපිනය (නිවාස අංකය සහ වීදිය) පවසන්න පුළුවන්ද?`;
+      case 'tamil': 
+        return `நகரம் ${city} என்று குறிப்பிடப்பட்டுள்ளது, ஆனால் முழு வினியோக முகவரி (வீட்டு எண் மற்றும் தெரு) என்ன?`;
+      case 'singlish': 
+        return `City eka ${city} kiyala labuna, eth full delivery address eka (house number & street) kiyන්න puluwanda?`;
+      case 'tanglish': 
+        return `City ${city} nu vandhuchu, aana full delivery address (house number & street) enna nu solla mudiyuma?`;
+      default: 
+        return `I see you're delivering to ${city}. Could you please provide the full delivery address (including house/apartment number and street name)?`;
+    }
+  }
+
+  if (isRecipientMissing) {
+    if (isSelf) {
+      switch (lang) {
+        case 'sinhala': return 'ඔබගේ නම සහ දුරකථන අංකය පවසන්න පුළුවන්ද?';
+        case 'tamil': return 'விநியோகத்திற்காக உங்கள் பெயர் மற்றும் தொலைபேசி எண்ணைக் கூற முடியுமா?';
+        case 'singlish': return 'Oyage nama saha contact phone number eka kiyන්න puluwanda?';
+        case 'tanglish': return 'Delivery kaaga unga name and phone number solla mudiyuma?';
+        default: return 'Could you please share your name and contact phone number for the delivery?';
+      }
+    } else {
+      switch (lang) {
+        case 'sinhala': return 'තෑග්ග ලබන අයගේ (recipient) නම සහ දුරකථන අංකය පවසන්න පුළුවන්ද?';
+        case 'tamil': return 'பரிசைப் பெறுபவரின் பெயர் மற்றும் தொலைபேசி எண்ணைக் கூற முடியுமா?';
+        case 'singlish': return 'Surprise eka labෙන kenaage (recipient) nama saha phone number eka kiyන්න puluwanda?';
+        case 'tanglish': return 'Gift receive panra avanga name and phone number solla mudiyuma?';
+        default: return 'Could you please share the recipient\'s name and contact phone number?';
+      }
+    }
+  }
+
+  if (isDateMissing) {
+    switch (lang) {
+      case 'sinhala': return 'භාණ්ඩය බෙදාහැරිය යුතු දිනය කුමක්ද? (උදා: හෙට, ලබන සතියේ)';
+      case 'tamil': return 'விநியோகிக்க வேண்டிய தேதி என்ன? (உதாரணம்: நாளை, அடுத்த வாரம்)';
+      case 'singlish': return 'Deliver karන්න ඕනෙ date eka mokakda? (e.g. tomorrow, next week)';
+      case 'tanglish': return 'Deliver panna vendiya date enna? (e.g. tomorrow, next week)';
+      default: return 'What date would you like this delivered? (e.g. tomorrow, next week)';
+    }
+  }
+
+  if (isSenderMissing) {
+    switch (lang) {
+      case 'sinhala': return 'කාඩ්පත සඳහා ඔබගේ නම (යවන්නාගේ නම) පවසන්න පුළුවන්ද?';
+      case 'tamil': return 'வாழ்த்து அட்டையில் சேர்க்க உங்கள் பெயர் (அனுப்புநரின் பெயர்) என்ன?';
+      case 'singlish': return 'Oyage nama (sender\'s name) mokakda gift card ekata danna?';
+      case 'tanglish': return 'Gift card la poda unga name (sender\'s name) enna?';
+      default: return 'Could you please tell me your name (sender\'s name) for the card?';
+    }
+  }
+
+  return null;
+}
 
 export const nlpService = new NlpService();
