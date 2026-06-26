@@ -517,14 +517,45 @@ export class NlpService {
       }
     }
     
-    // Detect query language for fallback response
+    // Detect query language for fallback response (including history context for continuity)
     const sinhalaRegex = /[\u0D80-\u0DFF]/;
     const tamilRegex = /[\u0B80-\u0BFF]/;
-    const isSinhala = sinhalaRegex.test(query);
-    const isTamil = tamilRegex.test(query);
+    
+    // Check current query
+    let isSinhala = sinhalaRegex.test(query);
+    let isTamil = tamilRegex.test(query);
     const textLower = query.toLowerCase();
-    const isTanglish = ['enaku', 'unaku', 'venum', 'anupunga', 'kudunga', 'iruka', 'eppo', 'nalaki', 'panna', 'pannunga', 'anupa', 'vanakkam', 'epdi', 'epadi'].some(kw => textLower.includes(kw));
-    const isSinglish = ['mata', 'one', 'ewanna', 'danna', 'hampa', 'yawanna', 'puluwanda', 'heta', 'walata', 'hari', 'mama', 'oyage', 'meka', 'mge', 'karanna', 'kohomada', 'oyata', 'halo'].some(kw => textLower.includes(kw));
+    
+    const tanglishKeywords = ['enaku', 'unaku', 'venum', 'anupunga', 'kudunga', 'iruka', 'eppo', 'nalaki', 'panna', 'pannunga', 'anupa', 'vanakkam', 'epdi', 'epadi', 'tanglish'];
+    const singlishKeywords = ['mata', 'one', 'ewanna', 'danna', 'hampa', 'yawanna', 'puluwanda', 'heta', 'walata', 'hari', 'mama', 'oyage', 'meka', 'mge', 'karanna', 'kohomada', 'oyata', 'halo', 'niyamai', 'thamai', 'nama', 'ela', 'oya', 'epaa', 'ganna', 'puluwan', 'nane', 'krla', 'balamu', 'ehenan', 'wade', 'denna', 'hoda', 'nadda', 'machan', 'maching', 'wisthara', 'saha', 'shehani', 'nisith', 'singlish'];
+
+    let isTanglish = tanglishKeywords.some(kw => textLower.includes(kw));
+    let isSinglish = singlishKeywords.some(kw => textLower.includes(kw));
+
+    // Scan history if current query does not explicitly set language
+    if (!isSinhala && !isTamil && !isTanglish && !isSinglish && history && history.length > 0) {
+      for (const msg of [...history].reverse()) {
+        if (msg.sender === 'user') {
+          const prevText = msg.text.toLowerCase();
+          if (sinhalaRegex.test(prevText)) {
+            isSinhala = true;
+            break;
+          }
+          if (tamilRegex.test(prevText)) {
+            isTamil = true;
+            break;
+          }
+          if (tanglishKeywords.some(kw => prevText.includes(kw))) {
+            isTanglish = true;
+            break;
+          }
+          if (singlishKeywords.some(kw => prevText.includes(kw))) {
+            isSinglish = true;
+            break;
+          }
+        }
+      }
+    }
 
     // Detect if it is a general social greeting
     const greetings = ['hello', 'hi', 'hey', 'vanakkam', 'ayubowan', 'kohomada', 'epdi', 'epadi', 'how are you', 'halo', 'hola'];

@@ -353,56 +353,25 @@ What are we shopping for today?`,
     setIsLoading(true);
 
     try {
-      // Detect user language
+      // Detect user language (retaining userLanguage as fallback for continuity)
       const sinhalaRegex = /[\u0D80-\u0DFF]/;
       const tamilRegex = /[\u0B80-\u0BFF]/;
       const textLower = text.toLowerCase();
-      let detectedLang: 'english' | 'sinhala' | 'tamil' | 'singlish' | 'tanglish' = 'english';
+      let detectedLang: 'english' | 'sinhala' | 'tamil' | 'singlish' | 'tanglish' = userLanguage;
       
+      const tanglishKeywords = ['enaku', 'unaku', 'venum', 'anupunga', 'kudunga', 'iruka', 'eppo', 'nalaki', 'panna', 'pannunga', 'anupa', 'tanglish'];
+      const singlishKeywords = ['mata', 'one', 'ewanna', 'danna', 'hampa', 'yawanna', 'puluwanda', 'heta', 'walata', 'hari', 'mama', 'oyage', 'meka', 'mge', 'karanna', 'niyamai', 'thamai', 'nama', 'ela', 'oya', 'puluwan', 'nane', 'krla', 'balamu', 'ehenan', 'wade', 'denna', 'machan', 'maching', 'singlish'];
+
       if (tamilRegex.test(text)) {
         detectedLang = 'tamil';
       } else if (sinhalaRegex.test(text)) {
         detectedLang = 'sinhala';
-      } else if (
-        ['enaku', 'unaku', 'venum', 'anupunga', 'kudunga', 'iruka', 'eppo', 'nalaki', 'panna', 'pannunga', 'anupa', 'tanglish'].some((kw) => textLower.includes(kw))
-      ) {
+      } else if (tanglishKeywords.some((kw) => textLower.includes(kw))) {
         detectedLang = 'tanglish';
-      } else if (
-        ['mata', 'one', 'ewanna', 'danna', 'hampa', 'yawanna', 'puluwanda', 'heta', 'walata', 'hari', 'mama', 'oyage', 'meka', 'mge', 'karanna'].some((kw) => textLower.includes(kw))
-      ) {
+      } else if (singlishKeywords.some((kw) => textLower.includes(kw))) {
         detectedLang = 'singlish';
       }
       setUserLanguage(detectedLang);
-
-      // Check if user is asking for checkout directly
-      if (textLower.includes('checkout') || textLower.includes('pay') || textLower.includes('purchase')) {
-        if (cart.length === 0) {
-          let emptyCartMsg = `Your hamper is empty. 😕 Please add some items from the catalog or ask me to search for them first! 😊`;
-          if (detectedLang === 'sinhala') {
-            emptyCartMsg = `ඔයාගේ හැම්පර් එක හිස්. 😕 කරුණාකර කැටලොග් එකෙන් භාණ්ඩ එකතු කරන්න නැතහොත් සෙවීමට මට කියන්න! 😊`;
-          } else if (detectedLang === 'tamil') {
-            emptyCartMsg = `உங்கள் கூடை காலியாக உள்ளது. 😕 பட்டியலிலிருந்து சில பொருட்களைச் சேர்க்கவும் அல்லது முதலில் அவற்றைத் தேட எனக்குக் கூறவும்! 😊`;
-          } else if (detectedLang === 'singlish') {
-            emptyCartMsg = `Oyage hamper eka empty. 😕 Please add some items from the catalog or ask me to search for them first! 😊`;
-          } else if (detectedLang === 'tanglish') {
-            emptyCartMsg = `Ungaloda hamper empty ah iruku. 😕 Catalog la irundhu items add pannunga illa enaku search panna sollunga! 😊`;
-          }
-
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Math.random().toString(),
-              sender: 'assistant',
-              text: emptyCartMsg,
-              timestamp: new Date(),
-            },
-          ]);
-          setIsLoading(false);
-          return;
-        }
-        await handleCheckout();
-        return;
-      }
 
       // Check if user is confirming/asking to add the recommended items from the last assistant message
       const lastAssistantMsg = [...messages].reverse().find((m) => m.sender === 'assistant');
@@ -462,6 +431,36 @@ What are we shopping for today?`,
           },
         ]);
         setIsLoading(false);
+        return;
+      }
+
+      // Check if user is asking for checkout directly
+      if (textLower.includes('checkout') || textLower.includes('pay') || textLower.includes('purchase')) {
+        if (cart.length === 0) {
+          let emptyCartMsg = `Your hamper is empty. 😕 Please add some items from the catalog or ask me to search for them first! 😊`;
+          if (detectedLang === 'sinhala') {
+            emptyCartMsg = `ඔයාගේ හැම්පර් එක හිස්. 😕 කරුණාකර කැටලොග් එකෙන් භාණ්ඩ එකතු කරන්න නැතහොත් සෙවීමට මට කියන්න! 😊`;
+          } else if (detectedLang === 'tamil') {
+            emptyCartMsg = `உங்கள் கூடை காலியாக உள்ளது. 😕 பட்டியலிலிருந்து சில பொருட்களைச் சேர்க்கவும் அல்லது முதலில் அவற்றைத் தேட எனக்குக் கூறவும்! 😊`;
+          } else if (detectedLang === 'singlish') {
+            emptyCartMsg = `Oyage hamper eka empty. 😕 Please add some items from the catalog or ask me to search for them first! 😊`;
+          } else if (detectedLang === 'tanglish') {
+            emptyCartMsg = `Ungaloda hamper empty ah iruku. 😕 Catalog la irundhu items add pannunga illa enaku search panna sollunga! 😊`;
+          }
+
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: Math.random().toString(),
+              sender: 'assistant',
+              text: emptyCartMsg,
+              timestamp: new Date(),
+            },
+          ]);
+          setIsLoading(false);
+          return;
+        }
+        await handleCheckout();
         return;
       }
 
