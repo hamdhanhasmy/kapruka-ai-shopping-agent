@@ -438,7 +438,8 @@ What are we shopping for today?`,
       }
 
       // Check if user is asking for checkout directly
-      if (textLower.includes('checkout') || textLower.includes('pay') || textLower.includes('purchase')) {
+      const isTrackIntent = /\b(VPAY[A-Z0-9]{6,12})\b/i.test(text) || /\b(track|tracking|status|where is my|ko mage|delivery status)\b/i.test(textLower);
+      if (!isTrackIntent && (textLower.includes('checkout') || textLower.includes('pay') || textLower.includes('purchase'))) {
         if (cart.length === 0) {
           let emptyCartMsg = `Your hamper is empty. 😕 Please add some items from the catalog or ask me to search for them first! 😊`;
           if (detectedLang === 'sinhala') {
