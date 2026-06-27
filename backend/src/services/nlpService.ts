@@ -19,6 +19,7 @@ export interface ParsedIntent {
   sender_name: string | null;
   is_self_shopping: boolean;
   hamper_title?: string | null;
+  track_order_number?: string | null;
 }
 
 export function normalizeIntent(intent: ParsedIntent): ParsedIntent {
@@ -50,6 +51,7 @@ export function normalizeIntent(intent: ParsedIntent): ParsedIntent {
     sender_name: check(intent.sender_name),
     is_self_shopping: typeof intent.is_self_shopping === 'boolean' ? intent.is_self_shopping : false,
     hamper_title: check(intent.hamper_title),
+    track_order_number: check(intent.track_order_number),
   };
 }
 
@@ -195,6 +197,7 @@ export class NlpService {
                - Self-Shopping mode (true) is the default unless they explicitly mention sending it to another person (e.g. "amma", "friend", "sister", "wife"), use words like "gift", "surprise", or provide a recipient name separate from their own.
                - If they say "mata" (for me), "ewanna" (send to me), "my address", "my name", "my phone", "ordering for myself", set this to true.
              - "hamper_title": A creative, personalized short title (3-5 words) for this cart/hamper bundle, based on the items, recipient relation, city, or purpose. Examples: "Amma's Sweet Birthday Surprise", "Kandy Snack Attack Box", "Weekly Grocery Staples", "Galle Avurudu Treats". If nothing is specified, default to a general name like "Bespoke Hamper Bundle".
+             - "track_order_number": The order ID or order tracking number to track if the user is asking to track their order or asking where their order is (e.g. "VPAY827982BA"). If not found, output null.
                
               CRITICAL RULES for Self-Shopping mode (is_self_shopping is true):
               - If they mention their own name (e.g. "mage nama Hamsey"), set BOTH "recipient_name" and "sender_name" to that name.
@@ -203,7 +206,7 @@ export class NlpService {
              ${historyPrompt}
              User Query: "${query}"
 
-             Return ONLY a JSON block with these keys: items (array), target_city (string or null), delivery_date (string or null), max_budget (number or null), gift_message (string or null), recipient_relation (string or null), recipient_name (string or null), recipient_phone (string or null), delivery_address (string or null), sender_name (string or null), is_self_shopping (boolean), hamper_title (string or null).
+             Return ONLY a JSON block with these keys: items (array), target_city (string or null), delivery_date (string or null), max_budget (number or null), gift_message (string or null), recipient_relation (string or null), recipient_name (string or null), recipient_phone (string or null), delivery_address (string or null), sender_name (string or null), is_self_shopping (boolean), hamper_title (string or null), track_order_number (string or null).
            `;
 
           const result = await model.generateContent(prompt);
@@ -386,6 +389,23 @@ export class NlpService {
       }
     }
 
+    // Track order number extraction (e.g. VPAY827982BA)
+    const trackMatch = query.match(/\b(VPAY[A-Z0-9]{6,12})\b/i);
+    let track_order_number = trackMatch ? trackMatch[1].toUpperCase() : null;
+
+    // Inherit track_order_number from history if not present in current query
+    if (!track_order_number && history && history.length > 0) {
+      for (let i = history.length - 1; i >= 0; i--) {
+        if (history[i].sender !== 'user') continue;
+        const prevText = history[i].text.toUpperCase();
+        const prevTrackMatch = prevText.match(/\b(VPAY[A-Z0-9]{6,12})\b/);
+        if (prevTrackMatch) {
+          track_order_number = prevTrackMatch[1];
+          break;
+        }
+      }
+    }
+
     return normalizeIntent({
       items,
       target_city,
@@ -399,6 +419,7 @@ export class NlpService {
       sender_name,
       is_self_shopping,
       hamper_title,
+      track_order_number,
     });
   }
 
@@ -440,7 +461,8 @@ export class NlpService {
     intent: ParsedIntent,
     bundle: any,
     history?: any[],
-    cart?: any[]
+    cart?: any[],
+    tracking?: any
   ): Promise<string> {
     if (this.genAIInstances.length > 0) {
       try {
@@ -482,6 +504,7 @@ export class NlpService {
             - Delivery Address: ${intent.delivery_address || 'Not specified'}
             - Sender Name: ${intent.sender_name || 'Not specified'}
             - Is Self-Shopping Mode: ${intent.is_self_shopping ? 'Yes' : 'No'}
+            - Order Tracking Info: ${tracking ? JSON.stringify(tracking) : 'None'}
             
             CRITICAL INFO COLLECTION RULES (when items are in the compiled hamper or the user's UI Shopping Cart):
             1. If the hamper/cart is NOT empty (meaning items are present in either the compiled hamper list or the user's UI Shopping Cart), your primary goal is to collect any missing delivery and checkout information.
@@ -493,7 +516,7 @@ export class NlpService {
                - Sender's Name: (if Is Self-Shopping Mode is No, ask for the sender's name for the gift card. If Is Self-Shopping Mode is Yes, you do not need to ask for a sender name).
             3. Do not ask for details that are already specified (not set to "Not specified"). Only ask for the missing ones.
             4. Make your questions feel warm, human, and local (e.g. using Singlish/Tanglish phrasing if the user is using it).
-
+ 
             Guidelines for your response:
             1. Speak naturally like a human shopping concierge. Avoid templates. Respond in the EXACT same language and script that the user addressed you in:
                - If the user wrote in Tamil script, reply in warm, helpful Tamil script.
@@ -507,8 +530,9 @@ export class NlpService {
             5. CRITICAL: Do NOT say that Kapruka does not offer fresh cakes, roses, or flowers for delivery. Kapruka is Sri Lanka's largest store and offers them all. If nothing is in the hamper, explain that they are out of stock or exceeded the budget limit, and suggest looking for something else.
             6. CRITICAL: Do NOT leak any internal developer function names, system tool names, or code terms (such as 'kapruka_create_order', 'kapruka_search_products', 'mcpClient', 'intent', etc.). The customer must never see developer/technical jargon.
             7. Write a short, engaging response (2-4 sentences). End with a warm hook to keep them chatting or prompt them to add items to their cart/hamper.
+            8. If Order Tracking Info is present (not 'None'), formulate a warm, helpful summary of the order status, recipient name, delivery date, and latest timeline stage. Address them in their script, and explain that the live tracking details have been loaded on their dashboard.
           `;
-
+ 
           const result = await model.generateContent(prompt);
           return result.response.text().trim();
         });
@@ -528,10 +552,10 @@ export class NlpService {
     
     const tanglishKeywords = ['enaku', 'unaku', 'venum', 'anupunga', 'kudunga', 'iruka', 'eppo', 'nalaki', 'panna', 'pannunga', 'anupa', 'vanakkam', 'epdi', 'epadi', 'tanglish'];
     const singlishKeywords = ['mata', 'one', 'ewanna', 'danna', 'hampa', 'yawanna', 'puluwanda', 'heta', 'walata', 'hari', 'mama', 'oyage', 'meka', 'mge', 'karanna', 'kohomada', 'oyata', 'halo', 'niyamai', 'thamai', 'nama', 'ela', 'oya', 'epaa', 'ganna', 'puluwan', 'nane', 'krla', 'balamu', 'ehenan', 'wade', 'denna', 'hoda', 'nadda', 'machan', 'maching', 'wisthara', 'saha', 'shehani', 'nisith', 'singlish'];
-
+ 
     let isTanglish = tanglishKeywords.some(kw => textLower.includes(kw));
     let isSinglish = singlishKeywords.some(kw => textLower.includes(kw));
-
+ 
     // Scan history if current query does not explicitly set language
     if (!isSinhala && !isTamil && !isTanglish && !isSinglish && history && history.length > 0) {
       for (const msg of [...history].reverse()) {
@@ -554,6 +578,24 @@ export class NlpService {
             break;
           }
         }
+      }
+    }
+ 
+    if (tracking) {
+      const orderId = tracking.order_id;
+      const status = tracking.status || 'Processing';
+      const delDate = tracking.delivery_date || 'soon';
+      
+      if (isTamil) {
+        return `உங்கள் ஆர்டர் ${orderId} தற்போது "${status}" நிலையில் உள்ளது. விநியோக தேதி: ${delDate}. மேலதிக விபரங்கள் இடது பக்கத்தில் காட்டப்பட்டுள்ளன! 😊`;
+      } else if (isSinhala) {
+        return `ඔබගේ ඇණවුම ${orderId} මේ වන විට "${status}" තත්වයේ පවතී. බෙදාහැරීමේ දිනය: ${delDate}. වැඩි විස්තර වම් පසින් බලාගත හැක! 😊`;
+      } else if (isTanglish) {
+        return `Unga order ${orderId} ippo "${status}" status la iruku. Delivery date: ${delDate}. Details left side la check pannunga! 😊`;
+      } else if (isSinglish) {
+        return `Oyage order ${orderId} eka ippo "${status}" status eke thiyenne. Delivery date eka: ${delDate}. Details left side panel eken balanna puluwani machan! 😊`;
+      } else {
+        return `Your order ${orderId} is currently in "${status}" status. Scheduled delivery: ${delDate}. You can see the full tracking timeline on the left panel! 😊`;
       }
     }
 

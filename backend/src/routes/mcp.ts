@@ -103,13 +103,25 @@ router.post(
       mergedIntent.target_city = await nlpService.resolveCanonicalCity(mergedIntent.target_city);
     }
     const bundle = await bundlerService.compileBundle(mergedIntent, currentState?.cart || []);
-    const reply = await nlpService.generateChatReply(text, mergedIntent, bundle, history, currentState?.cart);
+    
+    let tracking = null;
+    if (mergedIntent.track_order_number) {
+      try {
+        console.log(`[ROUTE] Fetching order tracking for: ${mergedIntent.track_order_number}`);
+        tracking = await mcpClient.trackOrder(mergedIntent.track_order_number);
+      } catch (err) {
+        console.error('Failed to track order in chat route:', err);
+      }
+    }
+
+    const reply = await nlpService.generateChatReply(text, mergedIntent, bundle, history, currentState?.cart, tracking);
     res.json({
       success: true,
       data: {
         intent: mergedIntent,
         bundle,
         reply,
+        tracking,
       },
     });
   })

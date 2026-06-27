@@ -6,6 +6,7 @@ import ProductCard, { Product } from '../components/ProductCard';
 import LogisticsPanel from '../components/LogisticsPanel';
 import ChatInterface, { Message } from '../components/ChatInterface';
 import CountdownCard from '../components/CountdownCard';
+import TrackingCard from '../components/TrackingCard';
 import { Package, Search, Sparkles, Filter, CreditCard } from 'lucide-react';
 import { sendMessageToConcierge, createCheckoutOrder } from '../utils/api';
 
@@ -143,6 +144,7 @@ What are we shopping for today?`,
   const [perishableWarning, setPerishableWarning] = useState(false);
   const [perishableItems, setPerishableItems] = useState<string[]>([]);
   const [checkoutData, setCheckoutData] = useState<any>(null);
+  const [trackingData, setTrackingData] = useState<any>(null);
   const [userLanguage, setUserLanguage] = useState<'english' | 'sinhala' | 'tamil' | 'singlish' | 'tanglish'>('english');
   const [activeTab, setActiveTab] = useState<'chat' | 'curation'>('chat');
 
@@ -241,6 +243,7 @@ What are we shopping for today?`,
 
       const result = await createCheckoutOrder(payload);
       setCheckoutData(result);
+      setTrackingData(null);
       setActiveTab('curation');
 
       let successMsg = `Hari! I have successfully generated your secure guest click-to-pay checkout link. 🌟 Your products and delivery rates are locked for 60 minutes. Please click the "Pay with Guest Checkout" card in the Curation Space on the left to complete your payment securely. Let me know if you need anything else! 😊`;
@@ -480,7 +483,13 @@ What are we shopping for today?`,
         cart,
       };
       const result = await sendMessageToConcierge(text, historyPayload, currentState);
-      const { intent, bundle } = result;
+      const { intent, bundle, tracking } = result;
+
+      if (tracking) {
+        setTrackingData(tracking);
+        setCheckoutData(null);
+        setActiveTab('curation');
+      }
 
       if (bundle.city) setCurrentCity(bundle.city);
       if (bundle.delivery_date) setCurrentDate(bundle.delivery_date);
@@ -581,6 +590,14 @@ What are we shopping for today?`,
           activeTab === 'curation' ? 'flex' : 'hidden lg:flex'
         }`}>
           <div>
+            {/* Tracking details card when trackingData is available */}
+            {trackingData && (
+              <TrackingCard
+                trackingData={trackingData}
+                onClose={() => setTrackingData(null)}
+              />
+            )}
+
             {/* Countdown widget when checkoutUrl is available */}
             {checkoutData && (
               <CountdownCard

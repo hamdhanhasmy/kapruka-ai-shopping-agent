@@ -414,7 +414,77 @@ export class KaprukaMcpClient {
 
   public async trackOrder(orderNumber: string) {
     const raw = await this.callTool('kapruka_track_order', { order_number: orderNumber });
-    return { tracking: raw };
+    return this.parseTrackingDetails(raw, orderNumber);
+  }
+
+  private parseTrackingDetails(markdown: string, orderNumber: string) {
+    let status = 'Processing';
+    
+    // Parse header: ## Order `VPAY827982BA` — Delivered
+    const headerMatch = markdown.match(/##\s*Order\s*`?([A-Z0-9-]+)`?\s*—\s*(.*)/i);
+    if (headerMatch) {
+      status = headerMatch[2].trim();
+    }
+
+    // Parse metadata
+    let orderedDate = null;
+    let deliveryDate = null;
+    const orderedMatch = markdown.match(/Ordered\s*\|\s*(.*?)\s*\|/i);
+    if (orderedMatch) orderedDate = orderedMatch[1].trim();
+    const deliveryDateMatch = markdown.match(/Delivery date\s*\|\s*(.*?)\s*\|/i);
+    if (deliveryDateMatch) deliveryDate = deliveryDateMatch[1].trim();
+
+    // Parse recipient & address
+    let recipientName = null;
+    let deliveryAddress = null;
+    const deliveringToMatch = markdown.match(/\*\*Delivering to\*\*\s*\n((?:-\s*.*\n?)+)/i);
+    if (deliveringToMatch) {
+      const bullets = deliveringToMatch[1]
+        .split('\n')
+        .map(line => line.replace(/^-\s*/, '').trim())
+        .filter(Boolean);
+      if (bullets.length > 0) {
+        recipientName = bullets[0];
+        deliveryAddress = bullets.slice(1).join(', ').replace(/<br\s*\/?>?/gi, '').trim();
+      }
+    }
+
+    // Parse Notes
+    let notes = null;
+    const notesMatch = markdown.match(/\*\*Notes:\*\*\s*(.*)/i);
+    if (notesMatch) notes = notesMatch[1].trim();
+
+    // Parse progress steps
+    const steps: Array<{ date: string; description: string }> = [];
+    const progressBlock = markdown.match(/\*\*Progress\*\*([\s\S]*?)(?:_live|$)/i);
+    if (progressBlock) {
+      const stepLines = progressBlock[1].split('\n');
+      for (const line of stepLines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('-')) {
+          // JUN 23, 2026 4:40 PM — Order Confirmed and Awaiting preparation
+          const match = trimmed.substring(1).match(/^(.*?)\s+(?:—|-)\s+(.*)$/);
+          if (match) {
+            steps.push({
+              date: match[1].trim(),
+              description: match[2].trim()
+            });
+          }
+        }
+      }
+    }
+
+    return {
+      order_id: orderNumber,
+      status,
+      ordered_date: orderedDate,
+      delivery_date: deliveryDate,
+      recipient_name: recipientName,
+      delivery_address: deliveryAddress,
+      notes,
+      steps,
+      raw_markdown: markdown
+    };
   }
 }
 

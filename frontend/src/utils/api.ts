@@ -15,6 +15,7 @@ export interface ChatResponse {
     sender_name?: string | null;
     is_self_shopping?: boolean;
     hamper_title?: string | null;
+    track_order_number?: string | null;
   };
   bundle: {
     items: Array<{
@@ -37,6 +38,17 @@ export interface ChatResponse {
     budget_exceeded: boolean;
   };
   reply: string;
+  tracking?: {
+    order_id: string;
+    status: string;
+    ordered_date: string | null;
+    delivery_date: string | null;
+    recipient_name: string | null;
+    delivery_address: string | null;
+    notes: string | null;
+    steps: Array<{ date: string; description: string }>;
+    raw_markdown: string;
+  } | null;
 }
 
 
